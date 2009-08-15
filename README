@@ -1,0 +1,19 @@
+quark - simple http get server
+==============================
+quark is an extremly small and simple http get-only web server. 
+
+
+Installation
+------------
+Edit config.mk to match your local setup. quark is installed into
+/usr/local/sbin by default.
+
+Afterwards enter the following command to build and install quark
+(if necessary as root):
+
+    $ make clean install
+
+
+Running quark 
+------------
+Simply invoke the quark <web-root> as superuser.
