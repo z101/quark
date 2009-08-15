@@ -270,7 +270,7 @@ response(void) {
 int
 request(void) {
 	char *p, *res;
-	int r, ishead = 0;
+	int r;
 
 	if((r = read(cfd, reqbuf, (MAXREQLEN - 1))) < 0) {
 		fprintf(stderr, "%s: read: %s\n", tstamp(), strerror(errno));
