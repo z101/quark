@@ -279,22 +279,21 @@ request(void) {
 	for(p = reqbuf; p < reqbuf + MAXREQLEN && *p != '\r' && *p != '\n'; p++);
 	if(*p == '\r' || *p == '\n') {
 		*p = 0;
-		/* parse command */
-		if(strncmp(reqbuf, "GET ", 4)) {
-			fprintf(stderr, "%s: %s performs unsupported request %s\n", tstamp(), name, reqbuf);
-			return -1;
-		}
-		if(reqbuf[4] != '/') {
-			fprintf(stderr, "%s: %s performs invalid request %s\n", tstamp(), name, reqbuf);
-			return -1;
-		}
+		/* check command */
+		if(strncmp(reqbuf, "GET ", 4) || reqbuf[4] != '/')
+			goto invalid_request;
 	}
+	else
+		goto invalid_request;
 	/* determine path */
 	for(res = reqbuf + 4; *res && *(res + 1) == '/'; res++);
 	for(p = res; *p && *p != ' '; p++);
 	*p = 0;
 	memmove(reqbuf, res, (p - res) + 1);
 	return 0;
+invalid_request:
+	fprintf(stderr, "%s: %s performs invalid request %s\n", tstamp(), name, reqbuf);
+	return -1;
 }
 
 void
