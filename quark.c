@@ -323,6 +323,7 @@ serve(int fd) {
 			close(cfd);
 			exit(EXIT_SUCCESS);
 		}
+		close(cfd);
 	}
 	fprintf(stdout, "%s: shutting down\n", tstamp());
 }
