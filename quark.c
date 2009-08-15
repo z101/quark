@@ -300,13 +300,18 @@ request(void) {
 void
 serve(int fd) {
 	int result;
+	unsigned int timeout = 1;
 	socklen_t salen;
 	struct sockaddr sa;
 
 	salen = sizeof sa;
 	while(running) {
-		if((cfd = accept(fd, &sa, &salen)) == -1)
-			break;
+		if((cfd = accept(fd, &sa, &salen)) == -1) {
+			/* el cheapo socket release */
+			fprintf(stderr, "%s: cannot accept(), sleep %u seconds\n", tstamp(), timeout);
+			sleep(timeout++);
+			continue;
+		}
 		if(fork() == 0) {
 			close(fd);
 			name[0] = 0;
@@ -319,12 +324,21 @@ serve(int fd) {
 			close(cfd);
 			exit(EXIT_SUCCESS);
 		}
+		timeout = 1;
 	}
 	fprintf(stdout, "%s: shutting down\n", tstamp());
 }
 
 void
 sighandler(int sig) {
+	static const char *signame[64] = {
+		[SIGHUP] = "SIGHUP",
+		[SIGINT] = "SIGINT",
+		[SIGQUIT] = "SIGQUIT",
+		[SIGABRT] = "SIGABRT",
+		[SIGTERM] = "SIGTERM",
+		[SIGCHLD] = "SIGCHLD"
+	};
 	switch(sig) {
 	default: break;
 	case SIGHUP:
@@ -332,6 +346,7 @@ sighandler(int sig) {
 	case SIGQUIT:
 	case SIGABRT:
 	case SIGTERM:
+		fprintf(stderr, "%s: received signal %s, closing down\n", tstamp(), signame[sig] ? signame[sig] : "");
 		close(fd);
 		running = 0;
 		break;
@@ -372,6 +387,7 @@ main(int argc, char *argv[]) {
 
 	/* init */
 	setbuf(stdout, NULL); /* unbuffered stdout */
+	setbuf(stderr, NULL); /* unbuffered stdout */
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;

@@ -1,11 +1,11 @@
 /* quark configuration */
 
-static const char servername[] = "127.0.0.1";
+static const char servername[] = "192.168.1.66";
 static const char serverport[] = "80";
 static const char docroot[]    = ".";
 static const char docindex[]   = "index.html";
-static const char user[]       = "www-data";
-static const char group[]      = "www-data";
+static const char user[]       = "nobody";
+static const char group[]      = "nobody";
 
 static const MimeType servermimes[] = {
 	{ "html", "text/html; charset=UTF-8" },
