@@ -300,7 +300,6 @@ request(void) {
 void
 serve(int fd) {
 	int result;
-	unsigned int timeout = 1;
 	socklen_t salen;
 	struct sockaddr sa;
 
@@ -308,8 +307,8 @@ serve(int fd) {
 	while(running) {
 		if((cfd = accept(fd, &sa, &salen)) == -1) {
 			/* el cheapo socket release */
-			fprintf(stderr, "%s: cannot accept(), sleep %u seconds\n", tstamp(), timeout);
-			sleep(timeout++);
+			fprintf(stderr, "%s: cannot accept: %s, sleep a second...\n", tstamp(), strerror(errno));
+			sleep(1);
 			continue;
 		}
 		if(fork() == 0) {
@@ -324,7 +323,6 @@ serve(int fd) {
 			close(cfd);
 			exit(EXIT_SUCCESS);
 		}
-		timeout = 1;
 	}
 	fprintf(stdout, "%s: shutting down\n", tstamp());
 }
