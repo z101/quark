@@ -1,6 +1,7 @@
 quark - simple http get server
 ==============================
-quark is an extremly small and simple http get-only web server. 
+quark is an extremly small and simple http get-only web server. It only serves
+static pages on a single host.
 
 
 Installation
@@ -16,4 +17,4 @@ Afterwards enter the following command to build and install quark
 
 Running quark 
 ------------
-Simply invoke the quark <web-root> as superuser.
+sudo quark <web-root>
