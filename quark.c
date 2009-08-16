@@ -383,6 +383,14 @@ main(int argc, char *argv[]) {
 	if(!(gpwd = getpwnam(group)))
 		die("error: invalid group %s\n", group);
 
+	signal(SIGCHLD, sighandler);
+	signal(SIGHUP, sighandler);
+	signal(SIGINT, sighandler);
+	signal(SIGQUIT, sighandler);
+	signal(SIGABRT, sighandler);
+	signal(SIGTERM, sighandler);
+	signal(SIGKILL, sighandler);
+
 	/* init */
 	setbuf(stdout, NULL); /* unbuffered stdout */
 	memset(&hints, 0, sizeof hints);
@@ -415,14 +423,6 @@ main(int argc, char *argv[]) {
 		freeaddrinfo(ai);
 		die("error: location too long\n");
 	}
-
-	signal(SIGCHLD, sighandler);
-	signal(SIGHUP, sighandler);
-	signal(SIGINT, sighandler);
-	signal(SIGQUIT, sighandler);
-	signal(SIGABRT, sighandler);
-	signal(SIGTERM, sighandler);
-	signal(SIGKILL, sighandler);
 
 	if(chroot(docroot) == -1)
 		die("error: chroot %s: %s\n", docroot, strerror(errno));
