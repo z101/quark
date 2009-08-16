@@ -385,7 +385,6 @@ main(int argc, char *argv[]) {
 
 	/* init */
 	setbuf(stdout, NULL); /* unbuffered stdout */
-	setbuf(stderr, NULL); /* unbuffered stdout */
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
