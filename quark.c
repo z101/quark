@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 #define LENGTH(x)  (sizeof x / sizeof x[0])
-#define MAXREQLEN  256
+#define MAXREQLEN  255
 
 typedef struct {
 	const char *extension;
@@ -34,6 +34,7 @@ static const char texthtml[]         = "text/html";
 static ssize_t writedata(const char *buf);
 static void die(const char *errstr, ...);
 static void response(void);
+static void responsecgi(void);
 static void responsedir(void);
 static void responsedirdata(DIR *d);
 static void responsefile(void);
@@ -48,7 +49,7 @@ static char *tstamp(void);
 static char location[256];
 static int running = 1;
 static char name[128];
-static char reqbuf[MAXREQLEN];
+static char reqbuf[MAXREQLEN+1];
 static char respbuf[1024];
 static int fd, cfd;
 
@@ -221,7 +222,7 @@ responsedir(void) {
 	ssize_t len = strlen(reqbuf);
 	DIR *d;
 
-	if((reqbuf[len - 1] != '/') && (len + 1 < MAXREQLEN - 1)) {
+	if((reqbuf[len - 1] != '/') && (len + 1 < MAXREQLEN)) {
 		/* add directory terminator if necessary */
 		reqbuf[len++] = '/';
 		reqbuf[len] = 0;
@@ -232,7 +233,7 @@ responsedir(void) {
 		&& writedata("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n") != -1);
 		return;
 	}
-	if(len + strlen(docindex) + 1 < MAXREQLEN - 1)
+	if(len + strlen(docindex) + 1 < MAXREQLEN)
 		memcpy(reqbuf + len, docindex, strlen(docindex) + 1);
 	if(access(reqbuf, R_OK) == -1) { /* directory mode */
 		reqbuf[len] = 0; /* cut off docindex again */
@@ -243,7 +244,34 @@ responsedir(void) {
 	}
 	else
 		responsefile(); /* docindex */
+}
 
+void
+responsecgi(void) {
+	FILE *cgi;
+	int r;
+
+	setenv("REQUEST_METHOD", "GET", 1);
+	setenv("SERVER_NAME", servername, 1);
+	setenv("SCRIPT_NAME", cgi_script, 1);
+	if((cgi = popen(cgi_script, "r"))) {
+		if(responsehdr(HttpOk) == -1)
+			return;
+		while((r = fread(respbuf, 1, sizeof respbuf - 1, cgi) > 0)) {
+			respbuf[r] = 0;
+			if(writedata(respbuf) == -1) {
+				pclose(cgi);
+				return;
+			}
+		}
+		pclose(cgi);
+	}
+	else {
+		fprintf(stderr, "%s: %s requests %s, but cannot run cgi script %s\n", tstamp(), name, cgi_script, reqbuf);
+		if(responsehdr(HttpNotFound) != -1
+		&& responsecontenttype(texthtml) != -1
+		&& writedata("\r\n<html><body>404 Not Found</body></html>\r\n") != -1);
+	}
 }
 
 void
@@ -252,7 +280,7 @@ response(void) {
 	struct stat st;
 
 	for(p = reqbuf; *p; p++)
-		if(*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
+		if(*p == '\\' || *p == '?' || *p == '%' || *p == '&' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
 			fprintf(stderr, "%s: %s requests bogus or hidden file %s\n", tstamp(), name, reqbuf);
 			if(responsehdr(HttpUnauthorized) != -1
 			&& responsecontenttype(texthtml) != -1
@@ -260,23 +288,35 @@ response(void) {
 			return;
 		}
 	fprintf(stdout, "%s: %s requests: %s\n", tstamp(), name, reqbuf);
-	stat(reqbuf, &st);
-	if(S_ISDIR(st.st_mode))
-		responsedir();
-	else
-		responsefile();
+	if(cgi_mode)
+		responsecgi();
+	else {
+		stat(reqbuf, &st);
+		if(S_ISDIR(st.st_mode))
+			responsedir();
+		else
+			responsefile();
+	}
 }
 
 int
 request(void) {
 	char *p, *res;
 	int r;
+	size_t offset = 0;
 
-	if((r = read(cfd, reqbuf, (MAXREQLEN - 1))) < 0) {
-		fprintf(stderr, "%s: read: %s\n", tstamp(), strerror(errno));
-		return -1;
+	do { /* MAXREQLEN byte of reqbuf is emergency 0 terminator */
+		if((r = read(cfd, reqbuf + offset, MAXREQLEN - offset)) < 0) {
+			fprintf(stderr, "%s: read: %s\n", tstamp(), strerror(errno));
+			return -1;
+		}
+		offset += r;
+		reqbuf[offset] = 0;
 	}
-	for(p = reqbuf; p < reqbuf + MAXREQLEN && *p != '\r' && *p != '\n'; p++);
+	while(offset < MAXREQLEN && (!strstr(reqbuf, "\r\n\r\n") || !strstr(reqbuf, "\n\n")));
+	for(p = reqbuf; *p && *p != '\r' && *p != '\n'; p++);
+	if(p >= reqbuf + MAXREQLEN)
+		goto invalid_request;
 	if(*p == '\r' || *p == '\n') {
 		*p = 0;
 		/* check command */
@@ -286,8 +326,12 @@ request(void) {
 	else
 		goto invalid_request;
 	/* determine path */
-	for(res = reqbuf + 4; *res && *(res + 1) == '/'; res++);
-	for(p = res; *p && *p != ' '; p++);
+	for(res = reqbuf + 4; *res && *(res + 1) == '/'; res++); /* strip '/' */
+	if(res >= reqbuf + MAXREQLEN)
+		goto invalid_request;
+	for(p = res; *p && *p != ' ' && *p != '\t'; p++);
+	if(p >= reqbuf + MAXREQLEN)
+		goto invalid_request;
 	*p = 0;
 	memmove(reqbuf, res, (p - res) + 1);
 	return 0;
@@ -373,7 +417,7 @@ main(int argc, char *argv[]) {
 	/* arguments */
 	for(i = 1; i < argc; i++)
 		if(!strcmp(argv[i], "-v"))
-			die("quark-"VERSION", © 2009 Anselm R Garbe\n");
+			die("quark-"VERSION", © 2009-2010 Anselm R Garbe\n");
 		else
 			die("usage: quark [-v]\n");
 

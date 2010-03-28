@@ -6,6 +6,8 @@ static const char docroot[]    = ".";
 static const char docindex[]   = "index.html";
 static const char user[]       = "nobody";
 static const char group[]      = "nobody";
+static const char cgi_script[] = "/var/www/werc-dev/bin/werc.rc";
+static const int  cgi_mode     = 0;
 
 static const MimeType servermimes[] = {
 	{ "html", "text/html; charset=UTF-8" },

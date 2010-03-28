@@ -17,7 +17,11 @@ options:
 	@echo CC $<
 	@${CC} -c ${CFLAGS} $<
 
-${OBJ}: config.mk
+${OBJ}: config.mk config.h
+
+config.h:
+	@echo creating $@ from config.def.h
+	@cp config.def.h $@
 
 quark: ${OBJ}
 	@echo CC -o $@
