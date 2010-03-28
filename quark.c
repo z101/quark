@@ -20,6 +20,11 @@
 #define LENGTH(x)  (sizeof x / sizeof x[0])
 #define MAXREQLEN  255
 
+enum {
+	GET  = 4,
+	HEAD = 5,
+};
+
 typedef struct {
 	const char *extension;
 	const char *mimetype;
@@ -31,7 +36,8 @@ static const char HttpUnauthorized[] = "401 Unauthorized";
 static const char HttpNotFound[]     = "404 Not Found";
 static const char texthtml[]         = "text/html";
 
-static ssize_t writedata(const char *buf);
+static ssize_t writetext(const char *buf);
+static ssize_t writedata(const char *buf, size_t buflen);
 static void die(const char *errstr, ...);
 static void response(void);
 static void responsecgi(void);
@@ -51,21 +57,25 @@ static int running = 1;
 static char name[128];
 static char reqbuf[MAXREQLEN+1];
 static char respbuf[1024];
-static int fd, cfd;
+static int fd, cfd, reqtype;
 
 ssize_t
-writedata(const char *buf) {
+writedata(const char *buf, size_t buf_len) {
 	ssize_t r, offset = 0;
-	size_t len = strlen(buf);
 
-	while(offset < len) {
-		if((r = write(cfd, buf + offset, len - offset)) == -1) {
+	while(offset < buf_len) {
+		if((r = write(cfd, buf + offset, buf_len - offset)) == -1) {
 			fprintf(stderr, "%s: client %s closed connection\n", tstamp(), name);
 			return -1;
 		}
 		offset += r;
 	}
 	return offset;
+}
+
+ssize_t
+writetext(const char *buf) {
+	return writedata(buf, strlen(buf));
 }
 
 void
@@ -111,7 +121,7 @@ responsehdr(const char *status) {
 		logerrmsg("snprintf failed, buffer size exceeded");
 		return -1;
 	}
-	return writedata(respbuf);
+	return writetext(respbuf);
 }
 
 int
@@ -123,7 +133,7 @@ responsecontentlen(off_t size) {
 		logerrmsg("snprintf failed, buffer sizeof exceeded");
 		return -1;
 	}
-	return writedata(respbuf);
+	return writetext(respbuf);
 }
 
 int
@@ -135,7 +145,7 @@ responselocation(const char *location, const char *pathinfo) {
 		logerrmsg("snprintf failed, buffer sizeof exceeded");
 		return -1;
 	}
-	return writedata(respbuf);
+	return writetext(respbuf);
 }
 
 int
@@ -147,7 +157,7 @@ responsecontenttype(const char *mimetype) {
 		logerrmsg("snprintf failed, buffer sizeof exceeded");
 		return -1;
 	}
-	return writedata(respbuf);
+	return writetext(respbuf);
 }
 
 void
@@ -172,8 +182,12 @@ responsefile(void) {
 	if((ffd = open(reqbuf, O_RDONLY)) == -1) {
 		fprintf(stderr, "%s: %s requests unknown path %s\n", tstamp(), name, reqbuf);
 		if(responsehdr(HttpNotFound) != -1
-		&& responsecontenttype(texthtml) != -1
-		&& writedata("\r\n<html><body>404 Not Found</body></html>\r\n") != -1);
+		&& responsecontenttype(texthtml) != -1)
+			;
+		else
+			return;
+		if(reqtype == GET)
+			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
 	}
 	else {
 		if((p = strrchr(reqbuf, '.'))) {
@@ -186,8 +200,11 @@ responsefile(void) {
 		}
 		if(responsehdr(HttpOk) != -1
 		&& responsecontentlen(st.st_size) != -1
-		&& responsecontenttype(mimetype) != -1
-		&& writedata("\r\n") != -1)
+		&& responsecontenttype(mimetype) != -1)
+			;
+		else
+			return;
+		if(reqtype == GET && writetext("\r\n") != -1)
 			responsefiledata(ffd, st.st_size);
 		close(ffd);
 	}
@@ -198,23 +215,27 @@ responsedirdata(DIR *d) {
 	struct dirent *e;
 
 	if(responsehdr(HttpOk) != -1
-	&& responsecontenttype(texthtml) != -1
-	&& writedata("\r\n<html><body><a href='..'>..</a><br>\r\n") != -1);
+	&& responsecontenttype(texthtml) != -1)
+		;
 	else
 		return;
-	while((e = readdir(d))) {
-		if(e->d_name[0] == '.') /* ignore hidden files, ., .. */
-			continue;
-		if(snprintf(respbuf, sizeof respbuf, "<a href='%s%s'>%s</a><br>\r\n",
-		            reqbuf, e->d_name, e->d_name) >= sizeof respbuf)
-		{
-			logerrmsg("snprintf failed, buffer sizeof exceeded");
+	if(reqtype == GET) {
+		if(writetext("\r\n<html><body><a href='..'>..</a><br>\r\n") == -1)
 			return;
+		while((e = readdir(d))) {
+			if(e->d_name[0] == '.') /* ignore hidden files, ., .. */
+				continue;
+			if(snprintf(respbuf, sizeof respbuf, "<a href='%s%s'>%s</a><br>\r\n",
+				    reqbuf, e->d_name, e->d_name) >= sizeof respbuf)
+			{
+				logerrmsg("snprintf failed, buffer sizeof exceeded");
+				return;
+			}
+			if(writetext(respbuf) == -1)
+				return;
 		}
-		if(writedata(respbuf) == -1)
-			return;
+		writetext("</body></html>\r\n");
 	}
-	writedata("</body></html>\r\n");
 }
 
 void
@@ -229,8 +250,12 @@ responsedir(void) {
 		fprintf(stdout, "%s: redirecting %s to %s%s\n", tstamp(), name, location, reqbuf);
 		if(responsehdr(HttpMoved) != -1
 		&& responselocation(location, reqbuf) != -1
-		&& responsecontenttype(texthtml) != -1
-		&& writedata("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n") != -1);
+		&& responsecontenttype(texthtml) != -1)
+			;
+		else
+			return;
+		if(reqtype == GET)
+			writetext("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n");
 		return;
 	}
 	if(len + strlen(docindex) + 1 < MAXREQLEN)
@@ -251,15 +276,21 @@ responsecgi(void) {
 	FILE *cgi;
 	int r;
 
-	setenv("REQUEST_METHOD", "GET", 1);
+	if(reqtype == GET)
+		setenv("REQUEST_METHOD", "GET", 1);
+	else if(reqtype == HEAD)
+		setenv("REQUEST_METHOD", "HEAD", 1);
+	else
+		return;
 	setenv("SERVER_NAME", servername, 1);
 	setenv("SCRIPT_NAME", cgi_script, 1);
+	setenv("REQUEST_URI", reqbuf, 1);
+	chdir(cgi_dir);
 	if((cgi = popen(cgi_script, "r"))) {
 		if(responsehdr(HttpOk) == -1)
 			return;
-		while((r = fread(respbuf, 1, sizeof respbuf - 1, cgi) > 0)) {
-			respbuf[r] = 0;
-			if(writedata(respbuf) == -1) {
+		while((r = fread(respbuf, 1, sizeof respbuf - 1, cgi)) > 0) {
+			if(writedata(respbuf, r) == -1) {
 				pclose(cgi);
 				return;
 			}
@@ -269,8 +300,12 @@ responsecgi(void) {
 	else {
 		fprintf(stderr, "%s: %s requests %s, but cannot run cgi script %s\n", tstamp(), name, cgi_script, reqbuf);
 		if(responsehdr(HttpNotFound) != -1
-		&& responsecontenttype(texthtml) != -1
-		&& writedata("\r\n<html><body>404 Not Found</body></html>\r\n") != -1);
+		&& responsecontenttype(texthtml) != -1)
+			;
+		else
+			return;
+		if(reqtype == GET)
+			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
 	}
 }
 
@@ -283,8 +318,12 @@ response(void) {
 		if(*p == '\\' || *p == '?' || *p == '%' || *p == '&' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
 			fprintf(stderr, "%s: %s requests bogus or hidden file %s\n", tstamp(), name, reqbuf);
 			if(responsehdr(HttpUnauthorized) != -1
-			&& responsecontenttype(texthtml) != -1
-			&& writedata("\r\n<html><body>401 Unauthorized</body></html>\r\n") != -1);
+			&& responsecontenttype(texthtml) != -1)
+				;
+			else
+				return;
+			if(reqtype == GET)
+				writetext("\r\n<html><body>401 Unauthorized</body></html>\r\n");
 			return;
 		}
 	fprintf(stdout, "%s: %s requests: %s\n", tstamp(), name, reqbuf);
@@ -313,20 +352,24 @@ request(void) {
 		offset += r;
 		reqbuf[offset] = 0;
 	}
-	while(offset < MAXREQLEN && (!strstr(reqbuf, "\r\n\r\n") || !strstr(reqbuf, "\n\n")));
+	while(offset < MAXREQLEN && !strstr(reqbuf, "\r\n\r\n") && !strstr(reqbuf, "\n\n"));
 	for(p = reqbuf; *p && *p != '\r' && *p != '\n'; p++);
 	if(p >= reqbuf + MAXREQLEN)
 		goto invalid_request;
 	if(*p == '\r' || *p == '\n') {
 		*p = 0;
 		/* check command */
-		if(strncmp(reqbuf, "GET ", 4) || reqbuf[4] != '/')
+		if(!strncmp(reqbuf, "GET ", 4) && reqbuf[4] == '/')
+			reqtype = GET;
+		else if(!strncmp(reqbuf, "HEAD ", 5) && reqbuf[5] != '/')
+			reqtype = HEAD;
+		else
 			goto invalid_request;
 	}
 	else
 		goto invalid_request;
 	/* determine path */
-	for(res = reqbuf + 4; *res && *(res + 1) == '/'; res++); /* strip '/' */
+	for(res = reqbuf + reqtype; *res && *(res + 1) == '/'; res++); /* strip '/' */
 	if(res >= reqbuf + MAXREQLEN)
 		goto invalid_request;
 	for(p = res; *p && *p != ' ' && *p != '\t'; p++);
