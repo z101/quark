@@ -459,10 +459,42 @@ main(int argc, char *argv[]) {
 
 	/* arguments */
 	for(i = 1; i < argc; i++)
-		if(!strcmp(argv[i], "-v"))
+		if(!strcmp(argv[i], "-n")) {
+			if(++i < argc) servername = argv[i];
+		}
+		else if(!strcmp(argv[i], "-p")) {
+			if(++i < argc) serverport = argv[i];
+		}
+		else if(!strcmp(argv[i], "-r")) {
+			if(++i < argc) docroot = argv[i];
+		}
+		else if(!strcmp(argv[i], "-i")) {
+			if(++i < argc) docindex = argv[i];
+		}
+		else if(!strcmp(argv[i], "-u")) {
+			if(++i < argc) user = argv[i];
+		}
+		else if(!strcmp(argv[i], "-g")) {
+			if(++i < argc) group = argv[i];
+		}
+		else if(!strcmp(argv[i], "-c")) {
+			if(++i < argc) cgi_dir = argv[i];
+			if(++i < argc) {
+				cgi_script = argv[i];
+				cgi_mode = 1;
+			}
+		}
+		else if(!strcmp(argv[i], "-v"))
 			die("quark-"VERSION", © 2009-2010 Anselm R Garbe\n");
 		else
-			die("usage: quark [-v]\n");
+			die("usage: quark [-n <server-name>]\n"
+			    "             [-p <port>]\n"
+			    "             [-r <doc root>]\n"
+			    "             [-i <doc index>]\n"
+			    "             [-u <user>]\n"
+			    "             [-g <group>]\n"
+			    "             [-c <cgi dir> <cgi script>]\n"
+			    "             [-v]\n");
 
 	/* sanity checks */
 	if(!(upwd = getpwnam(user)))
