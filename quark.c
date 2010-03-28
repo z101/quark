@@ -487,7 +487,7 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-v"))
 			die("quark-"VERSION", © 2009-2010 Anselm R Garbe\n");
 		else
-			die("usage: quark [-n <server-name>]\n"
+			die("\nusage: quark [-n <server-name>]\n"
 			    "             [-p <port>]\n"
 			    "             [-r <doc root>]\n"
 			    "             [-i <doc index>]\n"
