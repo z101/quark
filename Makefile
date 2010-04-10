@@ -45,12 +45,9 @@ install: all
 	@mkdir -p ${DESTDIR}${PREFIX}/bin
 	@cp -f quark ${DESTDIR}${PREFIX}/bin
 	@chmod 755 ${DESTDIR}${PREFIX}/bin/quark
-	@echo installing manual page to ${DESTDIR}${MANPREFIX}/man1
-	@mkdir -p ${DESTDIR}${MANPREFIX}/man1
 
 uninstall:
 	@echo removing executable file from ${DESTDIR}${PREFIX}/bin
 	@rm -f ${DESTDIR}${PREFIX}/bin/quark
-	@echo removing manual page from ${DESTDIR}${MANPREFIX}/man1
 
 .PHONY: all options clean dist install uninstall
