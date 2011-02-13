@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <pwd.h>
+#include <grp.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -38,9 +39,10 @@ static const char texthtml[]         = "text/html";
 
 static ssize_t writetext(const char *buf);
 static ssize_t writedata(const char *buf, size_t buflen);
+static void atomiclog(int fd, const char *errstr, va_list ap);
 static void die(const char *errstr, ...);
-void logmsg(const char *errstr, ...);
-void logerrmsg(const char *errstr, ...);
+static void logmsg(const char *errstr, ...);
+static void logerrmsg(const char *errstr, ...);
 static void response(void);
 static void responsecgi(void);
 static void responsedir(void);
@@ -68,7 +70,7 @@ writedata(const char *buf, size_t buf_len) {
 
 	while(offset < buf_len) {
 		if((r = write(cfd, buf + offset, buf_len - offset)) == -1) {
-			logerrmsg("%s: client %s closed connection\n", tstamp(), host);
+			logerrmsg("client %s closed connection\n", host);
 			return -1;
 		}
 		offset += r;
@@ -82,12 +84,27 @@ writetext(const char *buf) {
 }
 
 void
+atomiclog(int fd, const char *errstr, va_list ap) {
+	static char buf[512];
+	int n;
+
+	/*
+	assemble the message in buf and write it in one pass
+	to avoid interleaved concurrent writes on a shared fd.
+	*/
+	n = snprintf(buf, sizeof buf, "%s: ", tstamp());
+	n += vsnprintf(buf + n, sizeof buf - n, errstr, ap);
+	if (n >= sizeof buf)
+		n = sizeof buf - 1;
+	write(fd, buf, n);
+}
+
+void
 logmsg(const char *errstr, ...) {
 	va_list ap;
 
-	fprintf(stdout, "%s: ", tstamp());
 	va_start(ap, errstr);
-	vfprintf(stdout, errstr, ap);
+	atomiclog(STDOUT_FILENO, errstr, ap);
 	va_end(ap);
 }
 
@@ -95,9 +112,8 @@ void
 logerrmsg(const char *errstr, ...) {
 	va_list ap;
 
-	fprintf(stderr, "%s: ", tstamp());
 	va_start(ap, errstr);
-	vfprintf(stderr, errstr, ap);
+	atomiclog(STDERR_FILENO, errstr, ap);
 	va_end(ap);
 }
 
@@ -105,9 +121,8 @@ void
 die(const char *errstr, ...) {
 	va_list ap;
 
-	fprintf(stderr, "%s: ", tstamp());
 	va_start(ap, errstr);
-	vfprintf(stderr, errstr, ap);
+	atomiclog(STDERR_FILENO, errstr, ap);
 	va_end(ap);
 	exit(EXIT_FAILURE);
 }
@@ -181,8 +196,7 @@ responsefile(void) {
 	int i, ffd;
 	struct stat st;
 
-	stat(reqbuf, &st);
-	if((ffd = open(reqbuf, O_RDONLY)) == -1) {
+	if(stat(reqbuf, &st) == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
 		logerrmsg("%s requests unknown path %s\n", host, reqbuf);
 		if(responsehdr(HttpNotFound) != -1
 		&& responsecontenttype(texthtml) != -1)
@@ -269,6 +283,8 @@ responsedir(void) {
 			responsedirdata(d);
 			closedir(d);
 		}
+		else
+			logerrmsg("client %s requests %s but opendir failed: %s\n", host, reqbuf, strerror(errno));
 	}
 	else
 		responsefile(); /* docindex */
@@ -290,7 +306,8 @@ responsecgi(void) {
 	setenv("SCRIPT_NAME", cgi_script, 1);
 	setenv("REQUEST_URI", reqbuf, 1);
 	logmsg("CGI SERVER_NAME=%s SCRIPT_NAME=%s REQUEST_URI=%s\n", reqhost, cgi_script, reqbuf);
-	chdir(cgi_dir);
+	if(chdir(cgi_dir) == -1)
+		logerrmsg("chdir to cgi directory %s failed: %s\n", cgi_dir, strerror(errno));
 	if((cgi = popen(cgi_script, "r"))) {
 		if(responsehdr(HttpOk) == -1)
 			return;
@@ -335,8 +352,7 @@ response(void) {
 	if(cgi_mode)
 		responsecgi();
 	else {
-		stat(reqbuf, &st);
-		if(S_ISDIR(st.st_mode))
+		if(stat(reqbuf, &st) != -1 && S_ISDIR(st.st_mode))
 			responsedir();
 		else
 			responsefile();
@@ -350,7 +366,7 @@ request(void) {
 	size_t offset = 0;
 
 	do { /* MAXBUFLEN byte of reqbuf is emergency 0 terminator */
-		if((r = read(cfd, reqbuf + offset, MAXBUFLEN - offset)) < 0) {
+		if((r = read(cfd, reqbuf + offset, MAXBUFLEN - offset)) == -1) {
 			logerrmsg("read: %s\n", strerror(errno));
 			return -1;
 		}
@@ -362,7 +378,7 @@ request(void) {
 		for(res = res + 5; *res && (*res == ' ' || *res == '\t'); res++);
 		if(!*res)
 			goto invalid_request;
-		for(p = res; *p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\t'; p++);
+		for(p = res; *p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n'; p++);
 		if(!*p)
 			goto invalid_request;
 		*p = 0;
@@ -372,8 +388,6 @@ request(void) {
 		reqhost[p - res] = 0;
 	}
 	for(p = reqbuf; *p && *p != '\r' && *p != '\n'; p++);
-	if(!*p)
-		goto invalid_request;
 	if(*p == '\r' || *p == '\n') {
 		*p = 0;
 		/* check command */
@@ -407,15 +421,16 @@ serve(int fd) {
 	socklen_t salen;
 	struct sockaddr sa;
 
-	salen = sizeof sa;
 	while(running) {
+		salen = sizeof sa;
 		if((cfd = accept(fd, &sa, &salen)) == -1) {
 			/* el cheapo socket release */
 			logerrmsg("cannot accept: %s, sleep a second...\n", strerror(errno));
 			sleep(1);
 			continue;
 		}
-		if(fork() == 0) {
+		result = fork();
+		if(result == 0) {
 			close(fd);
 			host[0] = 0;
 			getnameinfo(&sa, salen, host, sizeof host, NULL, 0, NI_NOFQDN);
@@ -426,7 +441,8 @@ serve(int fd) {
 			shutdown(cfd, SHUT_WR);
 			close(cfd);
 			exit(EXIT_SUCCESS);
-		}
+		} else if (result == -1)
+			logerrmsg("fork failed: %s\n", strerror(errno));
 		close(cfd);
 	}
 	logmsg("shutting down\n");
@@ -472,7 +488,8 @@ tstamp(void) {
 int
 main(int argc, char *argv[]) {
 	struct addrinfo hints, *ai;
-	struct passwd *upwd, *gpwd;
+	struct passwd *upwd;
+	struct group *gpwd;
 	int i;
 
 	/* arguments */
@@ -485,7 +502,7 @@ main(int argc, char *argv[]) {
 	/* sanity checks */
 	if(!(upwd = getpwnam(user)))
 		die("error: invalid user %s\n", user);
-	if(!(gpwd = getpwnam(group)))
+	if(!(gpwd = getgrnam(group)))
 		die("error: invalid group %s\n", group);
 
 	signal(SIGCHLD, sighandler);
@@ -529,10 +546,12 @@ main(int argc, char *argv[]) {
 		die("error: location too long\n");
 	}
 
-	if(chroot(docroot) == -1)
-		die("error: chroot %s: %s\n", docroot, strerror(errno));
+	if(chdir(docroot) == -1)
+		die("error: chdir %s: %s\n", docroot, strerror(errno));
+	if(chroot(".") == -1)
+		die("error: chroot .: %s\n", strerror(errno));
 
-	if(setgid(gpwd->pw_gid) == -1)
+	if(setgid(gpwd->gr_gid) == -1)
 		die("error: cannot set group id\n");
 	if(setuid(upwd->pw_uid) == -1)
 		die("error: cannot set user id\n");
