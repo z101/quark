@@ -16,6 +16,7 @@ static const MimeType servermimes[] = {
 	{ "css",  "text/css" },
 	{ "txt",  "text/plain" },
 	{ "text", "text/plain" },
+	{ "md",   "text/plain" },
 	{ "png",  "image/png" },
 	{ "gif",  "image/gif" },
 	{ "jpg",  "image/jpg" },

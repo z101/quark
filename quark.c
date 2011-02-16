@@ -31,6 +31,27 @@ typedef struct {
 	const char *mimetype;
 } MimeType;
 
+typedef struct _Param Param;
+struct _Param {
+	const char *key;
+	const char *value;
+	Param *next;
+};
+
+typedef struct {
+	int type;
+	int fd;
+	const char *hostname;
+	const char *resource;
+	Param *params;
+} Request;
+
+typedef struct {
+	const char *hostname;
+	const char *resource;
+	void (*handle)(const Request *r);
+} RequestHandler;
+
 static const char HttpOk[]           = "200 OK";
 static const char HttpMoved[]        = "302 Moved Permanently";
 static const char HttpUnauthorized[] = "401 Unauthorized";
@@ -62,14 +83,15 @@ static char host[NI_MAXHOST];
 static char reqbuf[MAXBUFLEN+1];
 static char resbuf[MAXBUFLEN+1];
 static char reqhost[256];
-static int fd, cfd, reqtype;
+static int fd;
+static Request req;
 
 ssize_t
 writedata(const char *buf, size_t buf_len) {
 	ssize_t r, offset = 0;
 
 	while(offset < buf_len) {
-		if((r = write(cfd, buf + offset, buf_len - offset)) == -1) {
+		if((r = write(req.fd, buf + offset, buf_len - offset)) == -1) {
 			logerrmsg("client %s closed connection\n", host);
 			return -1;
 		}
@@ -183,7 +205,7 @@ responsefiledata(int fd, off_t size) {
 	off_t offset = 0;
 
 	while(offset < size)
-		if(sendfile(cfd, fd, &offset, size - offset) == -1) {
+		if(sendfile(req.fd, fd, &offset, size - offset) == -1) {
 			logerrmsg("sendfile failed on client %s: %s\n", host, strerror(errno));
 			return;
 		}
@@ -203,7 +225,7 @@ responsefile(void) {
 			;
 		else
 			return;
-		if(reqtype == GET)
+		if(req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
 	}
 	else {
@@ -221,7 +243,7 @@ responsefile(void) {
 			;
 		else
 			return;
-		if(reqtype == GET && writetext("\r\n") != -1)
+		if(req.type == GET && writetext("\r\n") != -1)
 			responsefiledata(ffd, st.st_size);
 		close(ffd);
 	}
@@ -236,7 +258,7 @@ responsedirdata(DIR *d) {
 		;
 	else
 		return;
-	if(reqtype == GET) {
+	if(req.type == GET) {
 		if(writetext("\r\n<html><body><a href='..'>..</a><br>\r\n") == -1)
 			return;
 		while((e = readdir(d))) {
@@ -271,7 +293,7 @@ responsedir(void) {
 			;
 		else
 			return;
-		if(reqtype == GET)
+		if(req.type == GET)
 			writetext("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n");
 		return;
 	}
@@ -295,9 +317,9 @@ responsecgi(void) {
 	FILE *cgi;
 	int r;
 
-	if(reqtype == GET)
+	if(req.type == GET)
 		setenv("REQUEST_METHOD", "GET", 1);
-	else if(reqtype == HEAD)
+	else if(req.type == HEAD)
 		setenv("REQUEST_METHOD", "HEAD", 1);
 	else
 		return;
@@ -326,7 +348,7 @@ responsecgi(void) {
 			;
 		else
 			return;
-		if(reqtype == GET)
+		if(req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
 	}
 }
@@ -344,7 +366,7 @@ response(void) {
 				;
 			else
 				return;
-			if(reqtype == GET)
+			if(req.type == GET)
 				writetext("\r\n<html><body>401 Unauthorized</body></html>\r\n");
 			return;
 		}
@@ -366,7 +388,7 @@ request(void) {
 	size_t offset = 0;
 
 	do { /* MAXBUFLEN byte of reqbuf is emergency 0 terminator */
-		if((r = read(cfd, reqbuf + offset, MAXBUFLEN - offset)) == -1) {
+		if((r = read(req.fd, reqbuf + offset, MAXBUFLEN - offset)) == -1) {
 			logerrmsg("read: %s\n", strerror(errno));
 			return -1;
 		}
@@ -392,16 +414,16 @@ request(void) {
 		*p = 0;
 		/* check command */
 		if(!strncmp(reqbuf, "GET ", 4) && reqbuf[4] == '/')
-			reqtype = GET;
+			req.type = GET;
 		else if(!strncmp(reqbuf, "HEAD ", 5) && reqbuf[5] == '/')
-			reqtype = HEAD;
+			req.type = HEAD;
 		else
 			goto invalid_request;
 	}
 	else
 		goto invalid_request;
 	/* determine path */
-	for(res = reqbuf + reqtype; *res && *(res + 1) == '/'; res++); /* strip '/' */
+	for(res = reqbuf + req.type; *res && *(res + 1) == '/'; res++); /* strip '/' */
 	if(!*res)
 		goto invalid_request;
 	for(p = res; *p && *p != ' ' && *p != '\t'; p++);
@@ -423,7 +445,7 @@ serve(int fd) {
 
 	while(running) {
 		salen = sizeof sa;
-		if((cfd = accept(fd, &sa, &salen)) == -1) {
+		if((req.fd = accept(fd, &sa, &salen)) == -1) {
 			/* el cheapo socket release */
 			logerrmsg("cannot accept: %s, sleep a second...\n", strerror(errno));
 			sleep(1);
@@ -435,15 +457,15 @@ serve(int fd) {
 			host[0] = 0;
 			getnameinfo(&sa, salen, host, sizeof host, NULL, 0, NI_NOFQDN);
 			result = request();
-			shutdown(cfd, SHUT_RD);
+			shutdown(req.fd, SHUT_RD);
 			if(result == 0)
 				response();
-			shutdown(cfd, SHUT_WR);
-			close(cfd);
+			shutdown(req.fd, SHUT_WR);
+			close(req.fd);
 			exit(EXIT_SUCCESS);
 		} else if (result == -1)
 			logerrmsg("fork failed: %s\n", strerror(errno));
-		close(cfd);
+		close(req.fd);
 	}
 	logmsg("shutting down\n");
 }
@@ -495,7 +517,7 @@ main(int argc, char *argv[]) {
 	/* arguments */
 	for(i = 1; i < argc; i++)
 		if(!strcmp(argv[i], "-v"))
-			die("quark-"VERSION", © 2009-2010 Anselm R Garbe\n");
+			die("quark-"VERSION", © 2009-2011 Anselm R Garbe\n");
 		else
 			die("usage: quark [-v]\n");
 
