@@ -2,24 +2,24 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pwd.h>
 #include <grp.h>
+#include <netdb.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/sendfile.h>
+#include <time.h>
+#include <unistd.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <time.h>
-#include <unistd.h>
 
 #define LENGTH(x)  (sizeof x / sizeof x[0])
 #define MAXBUFLEN  1024
+#define MIN(x,y)   ((x) < (y) ? (x) : (y))
 
 enum {
 	GET  = 4,
@@ -202,13 +202,14 @@ responsecontenttype(const char *mimetype) {
 
 void
 responsefiledata(int fd, off_t size) {
-	off_t offset = 0;
+	char buf[BUFSIZ];
+	size_t n;
 
-	while(offset < size)
-		if(sendfile(req.fd, fd, &offset, size - offset) == -1) {
-			logerrmsg("sendfile failed on client %s: %s\n", host, strerror(errno));
-			return;
-		}
+	for(; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
+		if(write(req.fd, buf, n) != n)
+			logerrmsg("error writing to client %s: %s\n", host, strerror(errno));
+	if(n == -1)
+		logerrmsg("error reading from file: %s\n", strerror(errno));
 }
 
 void
