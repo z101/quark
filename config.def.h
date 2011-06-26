@@ -1,14 +1,14 @@
 /* quark configuration */
 
-static const char servername[] = "127.0.0.1";
-static const char serverport[] = "80";
-static const char docroot[]    = ".";
-static const char docindex[]   = "index.html";
-static const char user[]       = "nobody";
-static const char group[]      = "nogroup";
-static const char cgi_dir[]    = "/var/www/werc-dev/bin";
-static const char cgi_script[] = "./werc.rc";
-static const int  cgi_mode     = 0;
+static const char  servername[] = "127.0.0.1";
+static const char  serverport[] = "80";
+static const char  docroot[]    = ".";
+static const char  docindex[]   = "index.html";
+static const char *user         = "nobody";
+static const char *group        = "nogroup";
+static const char  cgi_dir[]    = "/var/www/werc-dev/bin";
+static const char  cgi_script[] = "./werc.rc";
+static const int   cgi_mode     = 0;
 
 static const MimeType servermimes[] = {
 	{ "html", "text/html; charset=UTF-8" },

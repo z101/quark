@@ -522,10 +522,12 @@ main(int argc, char *argv[]) {
 			die("usage: quark [-v]\n");
 
 	/* sanity checks */
-	if(!(upwd = getpwnam(user)))
-		die("error: invalid user %s\n", user);
-	if(!(gpwd = getgrnam(group)))
-		die("error: invalid group %s\n", group);
+	if(user)
+		if(!(upwd = getpwnam(user)))
+			die("error: invalid user %s\n", user);
+	if(group)
+		if(!(gpwd = getgrnam(group)))
+			die("error: invalid group %s\n", group);
 
 	signal(SIGCHLD, sighandler);
 	signal(SIGHUP, sighandler);
@@ -573,10 +575,12 @@ main(int argc, char *argv[]) {
 	if(chroot(".") == -1)
 		die("error: chroot .: %s\n", strerror(errno));
 
-	if(setgid(gpwd->gr_gid) == -1)
-		die("error: cannot set group id\n");
-	if(setuid(upwd->pw_uid) == -1)
-		die("error: cannot set user id\n");
+	if(gpwd)
+		if(setgid(gpwd->gr_gid) == -1)
+			die("error: cannot set group id\n");
+	if(upwd)
+		if(setuid(upwd->pw_uid) == -1)
+			die("error: cannot set user id\n");
 
 	if(getuid() == 0)
 		die("error: won't run with root permissions, choose another user\n");
