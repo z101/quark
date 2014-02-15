@@ -53,7 +53,7 @@ typedef struct {
 } RequestHandler;
 
 static const char HttpOk[]           = "200 OK";
-static const char HttpMoved[]        = "302 Moved Permanently";
+static const char HttpMoved[]        = "301 Moved Permanently";
 static const char HttpUnauthorized[] = "401 Unauthorized";
 static const char HttpNotFound[]     = "404 Not Found";
 static const char texthtml[]         = "text/html";
