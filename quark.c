@@ -38,6 +38,7 @@ typedef struct {
 
 static const char HttpOk[]           = "200 OK";
 static const char HttpMoved[]        = "301 Moved Permanently";
+static const char HttpNotModified[]  = "304 Not Modified";
 static const char HttpUnauthorized[] = "401 Unauthorized";
 static const char HttpNotFound[]     = "404 Not Found";
 static const char texthtml[]         = "text/html";
@@ -67,6 +68,7 @@ static char host[NI_MAXHOST];
 static char reqbuf[MAXBUFLEN+1];
 static char resbuf[MAXBUFLEN+1];
 static char reqhost[256];
+static char reqmod[256];
 static int fd;
 static Request req;
 
@@ -184,6 +186,18 @@ responsecontenttype(const char *mimetype) {
 	return writetext(resbuf);
 }
 
+int
+responsemodified(char *mod) {
+    if(snprintf(resbuf, MAXBUFLEN,
+        "Last-Modified: %s\r\n",
+        mod) >= MAXBUFLEN)
+    {
+        logerrmsg("snprintf failed, buffer sizeof exceeded");
+        return -1;
+    }
+    return writetext(resbuf);
+}
+
 void
 responsefiledata(int fd, off_t size) {
 	char buf[BUFSIZ];
@@ -200,10 +214,13 @@ void
 responsefile(void) {
 	const char *mimetype = "unknown";
 	char *p;
-	int i, ffd;
+	char mod[25];
+	int i, ffd, r;
 	struct stat st;
+	time_t t;
 
-	if(stat(reqbuf, &st) == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
+	r = stat(reqbuf, &st);
+	if(r == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
 		logerrmsg("%s requests unknown path %s\n", host, reqbuf);
 		if(responsehdr(HttpNotFound) != -1
 		&& responsecontenttype(texthtml) != -1)
@@ -214,22 +231,33 @@ responsefile(void) {
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
 	}
 	else {
-		if((p = strrchr(reqbuf, '.'))) {
-			p++;
-			for(i = 0; i < LENGTH(servermimes); i++)
-				if(!strcmp(servermimes[i].extension, p)) {
-					mimetype = servermimes[i].mimetype;
-					break;
-				}
+		t = st.st_mtim.tv_sec;
+		memcpy(mod, asctime(gmtime(&t)), 24);
+		mod[24] = 0;
+		if(!strcmp(reqmod, mod)) {
+			if(responsehdr(HttpNotModified) != -1)
+				;
+			else
+				return;
+		} else {
+			if((p = strrchr(reqbuf, '.'))) {
+				p++;
+				for(i = 0; i < LENGTH(servermimes); i++)
+					if(!strcmp(servermimes[i].extension, p)) {
+						mimetype = servermimes[i].mimetype;
+						break;
+					}
+			}
+			if(responsehdr(HttpOk) != -1
+			&& responsemodified(mod) != -1
+			&& responsecontentlen(st.st_size) != -1
+			&& responsecontenttype(mimetype) != -1)
+				;
+			else
+				return;
+			if(req.type == GET && writetext("\r\n") != -1)
+				responsefiledata(ffd, st.st_size);
 		}
-		if(responsehdr(HttpOk) != -1
-		&& responsecontentlen(st.st_size) != -1
-		&& responsecontenttype(mimetype) != -1)
-			;
-		else
-			return;
-		if(req.type == GET && writetext("\r\n") != -1)
-			responsefiledata(ffd, st.st_size);
 		close(ffd);
 	}
 }
@@ -388,11 +416,22 @@ request(void) {
 		for(p = res; *p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n'; p++);
 		if(!*p)
 			goto invalid_request;
-		*p = 0;
 		if(p - res > sizeof reqhost)
 			goto invalid_request;
 		memcpy(reqhost, res, p - res);
 		reqhost[p - res] = 0;
+	}
+	if((res = strstr(reqbuf, "If-Modified-Since:"))) {
+		for(res = res + 19; *res && (*res == ' ' || *res == '\t'); res++);
+		if(!*res)
+			goto invalid_request;
+		for(p = res; *p && *p != '\r' && *p != '\n'; p++);
+		if(!*p)
+			goto invalid_request;
+		if(p - res > sizeof reqmod)
+			goto invalid_request;
+		memcpy(reqmod, res, p - res);
+		reqmod[p - res] = 0;
 	}
 	for(p = reqbuf; *p && *p != '\r' && *p != '\n'; p++);
 	if(*p == '\r' || *p == '\n') {
