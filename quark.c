@@ -31,26 +31,10 @@ typedef struct {
 	const char *mimetype;
 } MimeType;
 
-typedef struct _Param Param;
-struct _Param {
-	const char *key;
-	const char *value;
-	Param *next;
-};
-
 typedef struct {
 	int type;
 	int fd;
-	const char *hostname;
-	const char *resource;
-	Param *params;
 } Request;
-
-typedef struct {
-	const char *hostname;
-	const char *resource;
-	void (*handle)(const Request *r);
-} RequestHandler;
 
 static const char HttpOk[]           = "200 OK";
 static const char HttpMoved[]        = "301 Moved Permanently";
