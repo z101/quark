@@ -7,7 +7,7 @@ static pages on a single host.
 Installation
 ------------
 Edit config.mk to match your local setup. quark is installed into
-/usr/local/sbin by default.
+/usr/local/bin by default.
 
 Afterwards enter the following command to build and install quark
 (if necessary as root):
@@ -17,4 +17,5 @@ Afterwards enter the following command to build and install quark
 
 Running quark 
 ------------
-sudo quark <web-root>
+    $ cd <web-root>
+    $ sudo quark
