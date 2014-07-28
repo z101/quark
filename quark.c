@@ -58,6 +58,7 @@ static void responsedir(void);
 static void responsedirdata(DIR *d);
 static void responsefile(void);
 static void responsefiledata(int fd, off_t size);
+static int getreqentry(char *name, char *target, size_t targetlen, char *breakchars);
 static int request(void);
 static void serve(int fd);
 static void sighandler(int sig);
@@ -398,44 +399,48 @@ response(void) {
 }
 
 int
+getreqentry(char *name, char *target, size_t targetlen, char *breakchars) {
+	char *p, *res;
+
+	if((res = strstr(reqbuf, name))) {
+		for(res = res + strlen(name); *res && (*res == ' ' || *res == '\t'); ++res);
+		if(!*res)
+			return 1;
+		for(p = res; *p && !strchr(breakchars, *p); ++p);
+		if(!*p)
+			return 1;
+		if((size_t)(p - res) > targetlen)
+			return 1;
+		memcpy(target, res, p - res);
+		target[p - res] = 0;
+		return 0;
+	}
+	return -1;
+}
+
+int
 request(void) {
 	char *p, *res;
 	int r;
 	size_t offset = 0;
 
-	do { /* MAXBUFLEN byte of reqbuf is emergency 0 terminator */
+	/* read request into reqbuf */
+	for( ; r > 0 && offset < MAXBUFLEN && (!strstr(reqbuf, "\r\n") || !strstr(reqbuf, "\n")); ) {
 		if((r = read(req.fd, reqbuf + offset, MAXBUFLEN - offset)) == -1) {
 			logerrmsg("read: %s\n", strerror(errno));
 			return -1;
 		}
 		offset += r;
-		reqbuf[offset] = 0;
+		reqbuf[offset] = 0; /* MAXBUFLEN byte of reqbuf is emergency 0 terminator */
 	}
-	while(r > 0 && offset < MAXBUFLEN && (!strstr(reqbuf, "\r\n") || !strstr(reqbuf, "\n")));
-	if((res = strstr(reqbuf, "Host:"))) {
-		for(res = res + 5; *res && (*res == ' ' || *res == '\t'); res++);
-		if(!*res)
-			goto invalid_request;
-		for(p = res; *p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n'; p++);
-		if(!*p)
-			goto invalid_request;
-		if(p - res > sizeof reqhost)
-			goto invalid_request;
-		memcpy(reqhost, res, p - res);
-		reqhost[p - res] = 0;
-	}
-	if((res = strstr(reqbuf, "If-Modified-Since:"))) {
-		for(res = res + 19; *res && (*res == ' ' || *res == '\t'); res++);
-		if(!*res)
-			goto invalid_request;
-		for(p = res; *p && *p != '\r' && *p != '\n'; p++);
-		if(!*p)
-			goto invalid_request;
-		if(p - res > sizeof reqmod)
-			goto invalid_request;
-		memcpy(reqmod, res, p - res);
-		reqmod[p - res] = 0;
-	}
+
+	/* extract host and mod */
+	if (getreqentry("Host:", reqhost, LENGTH(reqhost), " \t\r\n") != 0)
+		goto invalid_request;
+	if (getreqentry("If-Modified-Since:", reqmod, LENGTH(reqmod), "\r\n") == 1)
+		goto invalid_request;
+
+	/* extract method */
 	for(p = reqbuf; *p && *p != '\r' && *p != '\n'; p++);
 	if(*p == '\r' || *p == '\n') {
 		*p = 0;
@@ -446,9 +451,10 @@ request(void) {
 			req.type = HEAD;
 		else
 			goto invalid_request;
-	}
-	else
+	} else {
 		goto invalid_request;
+	}
+
 	/* determine path */
 	for(res = reqbuf + req.type; *res && *(res + 1) == '/'; res++); /* strip '/' */
 	if(!*res)
