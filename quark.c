@@ -541,12 +541,12 @@ main(int argc, char *argv[]) {
 	struct group *gpwd;
 	int i;
 
-	/* arguments */
-	for(i = 1; i < argc; i++)
-		if(!strcmp(argv[i], "-v"))
-			die("quark-"VERSION", © 2009-2011 Anselm R Garbe\n");
-		else
-			die("usage: quark [-v]\n");
+	ARGBEGIN {
+	case 'v':
+		die("quark-"VERSION"\n");
+	default:
+		die("usage: %s [-v]\n", argv0);
+	} ARGEND;
 
 	/* sanity checks */
 	if(user)
