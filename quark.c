@@ -17,6 +17,9 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#include "arg.h"
+char *argv0;
+
 #define LENGTH(x)  (sizeof x / sizeof x[0])
 #define MAXBUFLEN  1024
 #define MIN(x,y)   ((x) < (y) ? (x) : (y))
