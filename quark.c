@@ -46,12 +46,28 @@ static const char HttpUnauthorized[] = "401 Unauthorized";
 static const char HttpNotFound[]     = "404 Not Found";
 static const char texthtml[]         = "text/html";
 
+enum {
+	HEADER,
+	CONTENTLEN,
+	LOCATION,
+	CONTENTTYPE,
+	MODIFIED
+};
+
+static const char *resentry[] = {
+	"HTTP/1.1 %s\r\nConnection: close\r\nDate: %s\r\nServer: quark-"VERSION"\r\n",
+	"Content-Length: %lu\r\n",
+	"Location: %s%s\r\n",
+	"Content-Type: %s\r\n",
+	"Last-Modified: %s\r\n" };
+
 static ssize_t writetext(const char *buf);
 static ssize_t writedata(const char *buf, size_t buflen);
 static void atomiclog(int fd, const char *errstr, va_list ap);
-static void die(const char *errstr, ...);
 static void logmsg(const char *errstr, ...);
 static void logerrmsg(const char *errstr, ...);
+static void die(const char *errstr, ...);
+static int putresentry(int type, ...);
 static void response(void);
 static void responsecgi(void);
 static void responsedir(void);
@@ -140,66 +156,16 @@ die(const char *errstr, ...) {
 }
 
 int
-responsehdr(const char *status) {
-	if(snprintf(resbuf, MAXBUFLEN,
-		"HTTP/1.1 %s\r\n"
-		"Connection: close\r\n"
-		"Date: %s\r\n"
-		"Server: quark-"VERSION"\r\n",
-		status, tstamp()) >= MAXBUFLEN)
-	{
-		logerrmsg("snprintf failed, buffer size exceeded");
+putresentry(int type, ...) {
+	va_list ap;
+
+	va_start(ap, type);
+	if(vsnprintf(resbuf, MAXBUFLEN, resentry[type], ap) >= MAXBUFLEN) {
+		logerrmsg("vsnprintf failed, buffer size exceeded");
 		return -1;
 	}
+	va_end(ap);
 	return writetext(resbuf);
-}
-
-int
-responsecontentlen(off_t size) {
-	if(snprintf(resbuf, MAXBUFLEN,
-		"Content-Length: %lu\r\n",
-		size) >= MAXBUFLEN)
-	{
-		logerrmsg("snprintf failed, buffer sizeof exceeded");
-		return -1;
-	}
-	return writetext(resbuf);
-}
-
-int
-responselocation(const char *location, const char *pathinfo) {
-	if(snprintf(resbuf, MAXBUFLEN,
-		"Location: %s%s\r\n",
-		location, pathinfo) >= MAXBUFLEN)
-	{
-		logerrmsg("snprintf failed, buffer sizeof exceeded");
-		return -1;
-	}
-	return writetext(resbuf);
-}
-
-int
-responsecontenttype(const char *mimetype) {
-	if(snprintf(resbuf, MAXBUFLEN,
-		"Content-Type: %s\r\n",
-		mimetype) >= MAXBUFLEN)
-	{
-		logerrmsg("snprintf failed, buffer sizeof exceeded");
-		return -1;
-	}
-	return writetext(resbuf);
-}
-
-int
-responsemodified(char *mod) {
-    if(snprintf(resbuf, MAXBUFLEN,
-        "Last-Modified: %s\r\n",
-        mod) >= MAXBUFLEN)
-    {
-        logerrmsg("snprintf failed, buffer sizeof exceeded");
-        return -1;
-    }
-    return writetext(resbuf);
 }
 
 void
@@ -226,10 +192,8 @@ responsefile(void) {
 	r = stat(reqbuf, &st);
 	if(r == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
 		logerrmsg("%s requests unknown path %s\n", host, reqbuf);
-		if(responsehdr(HttpNotFound) != -1
-		&& responsecontenttype(texthtml) != -1)
-			;
-		else
+		if(putresentry(HEADER, HttpNotFound, tstamp()) == -1
+		|| putresentry(CONTENTTYPE, texthtml) == -1)
 			return;
 		if(req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
@@ -239,9 +203,7 @@ responsefile(void) {
 		memcpy(mod, asctime(gmtime(&t)), 24);
 		mod[24] = 0;
 		if(!strcmp(reqmod, mod)) {
-			if(responsehdr(HttpNotModified) != -1)
-				;
-			else
+			if(putresentry(HEADER, HttpNotModified, tstamp()) == -1)
 				return;
 		} else {
 			if((p = strrchr(reqbuf, '.'))) {
@@ -252,12 +214,10 @@ responsefile(void) {
 						break;
 					}
 			}
-			if(responsehdr(HttpOk) != -1
-			&& responsemodified(mod) != -1
-			&& responsecontentlen(st.st_size) != -1
-			&& responsecontenttype(mimetype) != -1)
-				;
-			else
+			if(putresentry(HEADER, HttpOk, tstamp()) == -1
+			|| putresentry(MODIFIED, mod) == -1
+			|| putresentry(CONTENTLEN, st.st_size) == -1
+			|| putresentry(CONTENTTYPE, mimetype) == -1)
 				return;
 			if(req.type == GET && writetext("\r\n") != -1)
 				responsefiledata(ffd, st.st_size);
@@ -270,10 +230,8 @@ void
 responsedirdata(DIR *d) {
 	struct dirent *e;
 
-	if(responsehdr(HttpOk) != -1
-	&& responsecontenttype(texthtml) != -1)
-		;
-	else
+	if(putresentry(HEADER, HttpOk, tstamp()) == -1
+	|| putresentry(CONTENTTYPE, texthtml) == -1)
 		return;
 	if(req.type == GET) {
 		if(writetext("\r\n<html><body><a href='..'>..</a><br>\r\n") == -1)
@@ -304,11 +262,9 @@ responsedir(void) {
 		reqbuf[len++] = '/';
 		reqbuf[len] = 0;
 		logmsg("redirecting %s to %s%s\n", host, location, reqbuf);
-		if(responsehdr(HttpMoved) != -1
-		&& responselocation(location, reqbuf) != -1
-		&& responsecontenttype(texthtml) != -1)
-			;
-		else
+		if(putresentry(HEADER, HttpMoved, tstamp()) == -1
+		|| putresentry(LOCATION, location, reqbuf) == -1
+		|| putresentry(CONTENTTYPE, texthtml) == -1)
 			return;
 		if(req.type == GET)
 			writetext("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n");
@@ -348,7 +304,7 @@ responsecgi(void) {
 	if(chdir(cgi_dir) == -1)
 		logerrmsg("chdir to cgi directory %s failed: %s\n", cgi_dir, strerror(errno));
 	if((cgi = popen(cgi_script, "r"))) {
-		if(responsehdr(HttpOk) == -1)
+		if(putresentry(HEADER, HttpOk, tstamp()) == -1)
 			return;
 		while((r = fread(resbuf, 1, MAXBUFLEN, cgi)) > 0) {
 			if(writedata(resbuf, r) == -1) {
@@ -360,10 +316,8 @@ responsecgi(void) {
 	}
 	else {
 		logerrmsg("%s requests %s, but cannot run cgi script %s\n", host, cgi_script, reqbuf);
-		if(responsehdr(HttpNotFound) != -1
-		&& responsecontenttype(texthtml) != -1)
-			;
-		else
+		if(putresentry(HEADER, HttpNotFound, tstamp()) == -1
+		|| putresentry(CONTENTTYPE, texthtml) == -1)
 			return;
 		if(req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
@@ -378,8 +332,8 @@ response(void) {
 	for(p = reqbuf; *p; p++)
 		if(*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
 			logerrmsg("%s requests bogus or hidden file %s\n", host, reqbuf);
-			if(responsehdr(HttpUnauthorized) != -1
-			&& responsecontenttype(texthtml) != -1)
+			if(putresentry(HEADER, HttpUnauthorized, tstamp()) == -1
+			|| putresentry(CONTENTTYPE, texthtml) == -1)
 				;
 			else
 				return;
