@@ -95,14 +95,13 @@ static Request req;
 
 ssize_t
 writedata(const char *buf, size_t buf_len) {
-	ssize_t r, offset = 0;
+	ssize_t r, offset;
 
-	while(offset < buf_len) {
+	for(offset = 0; offset < buf_len; offset += r) {
 		if((r = write(req.fd, buf + offset, buf_len - offset)) == -1) {
 			logerrmsg("client %s closed connection\n", host);
 			return 1;
 		}
-		offset += r;
 	}
 	return 0;
 }
