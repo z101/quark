@@ -459,20 +459,12 @@ serve(int fd) {
 
 void
 sighandler(int sig) {
-	switch(sig) {
-	default: break;
-	case SIGHUP:
-	case SIGINT:
-	case SIGQUIT:
-	case SIGABRT:
-	case SIGTERM:
+	if (sig == SIGCHLD) {
+		while(0 < waitpid(-1, NULL, WNOHANG));
+	} else {
 		logerrmsg("received signal: %s, closing down\n", strsignal(sig));
 		close(fd);
 		running = 0;
-		break;
-	case SIGCHLD:
-		while(0 < waitpid(-1, NULL, WNOHANG));
-		break;
 	}
 }
 
@@ -514,7 +506,6 @@ main(int argc, char *argv[]) {
 	signal(SIGQUIT, sighandler);
 	signal(SIGABRT, sighandler);
 	signal(SIGTERM, sighandler);
-	signal(SIGKILL, sighandler);
 
 	/* init */
 	setbuf(stdout, NULL); /* unbuffered stdout */
