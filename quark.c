@@ -55,11 +55,12 @@ enum {
 };
 
 static const char *resentry[] = {
-	"HTTP/1.1 %s\r\nConnection: close\r\nDate: %s\r\nServer: quark-"VERSION"\r\n",
-	"Content-Length: %lu\r\n",
-	"Location: %s%s\r\n",
-	"Content-Type: %s\r\n",
-	"Last-Modified: %s\r\n" };
+	[HEADER] = "HTTP/1.1 %s\r\nConnection: close\r\nDate: %s\r\nServer: quark-"VERSION"\r\n",
+	[CONTENTLEN] = "Content-Length: %lu\r\n",
+	[LOCATION] = "Location: %s%s\r\n",
+	[CONTENTTYPE] = "Content-Type: %s\r\n",
+	[MODIFIED] = "Last-Modified: %s\r\n"
+};
 
 static ssize_t writetext(const char *buf);
 static ssize_t writedata(const char *buf, size_t buflen);
