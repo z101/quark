@@ -100,11 +100,11 @@ writedata(const char *buf, size_t buf_len) {
 	while(offset < buf_len) {
 		if((r = write(req.fd, buf + offset, buf_len - offset)) == -1) {
 			logerrmsg("client %s closed connection\n", host);
-			return -1;
+			return 1;
 		}
 		offset += r;
 	}
-	return offset;
+	return 0;
 }
 
 ssize_t
@@ -193,8 +193,8 @@ responsefile(void) {
 	r = stat(reqbuf, &st);
 	if(r == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
 		logerrmsg("%s requests unknown path %s\n", host, reqbuf);
-		if(putresentry(HEADER, HttpNotFound, tstamp()) == -1
-		|| putresentry(CONTENTTYPE, texthtml) == -1)
+		if(putresentry(HEADER, HttpNotFound, tstamp())
+		|| putresentry(CONTENTTYPE, texthtml))
 			return;
 		if(req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
@@ -204,7 +204,7 @@ responsefile(void) {
 		memcpy(mod, asctime(gmtime(&t)), 24);
 		mod[24] = 0;
 		if(!strcmp(reqmod, mod)) {
-			if(putresentry(HEADER, HttpNotModified, tstamp()) == -1)
+			if(putresentry(HEADER, HttpNotModified, tstamp()))
 				return;
 		} else {
 			if((p = strrchr(reqbuf, '.'))) {
@@ -215,12 +215,12 @@ responsefile(void) {
 						break;
 					}
 			}
-			if(putresentry(HEADER, HttpOk, tstamp()) == -1
-			|| putresentry(MODIFIED, mod) == -1
-			|| putresentry(CONTENTLEN, st.st_size) == -1
-			|| putresentry(CONTENTTYPE, mimetype) == -1)
+			if(putresentry(HEADER, HttpOk, tstamp())
+			|| putresentry(MODIFIED, mod)
+			|| putresentry(CONTENTLEN, st.st_size)
+			|| putresentry(CONTENTTYPE, mimetype))
 				return;
-			if(req.type == GET && writetext("\r\n") != -1)
+			if(req.type == GET && !writetext("\r\n"))
 				responsefiledata(ffd, st.st_size);
 		}
 		close(ffd);
@@ -231,11 +231,11 @@ void
 responsedirdata(DIR *d) {
 	struct dirent *e;
 
-	if(putresentry(HEADER, HttpOk, tstamp()) == -1
-	|| putresentry(CONTENTTYPE, texthtml) == -1)
+	if(putresentry(HEADER, HttpOk, tstamp())
+	|| putresentry(CONTENTTYPE, texthtml))
 		return;
 	if(req.type == GET) {
-		if(writetext("\r\n<html><body><a href='..'>..</a><br>\r\n") == -1)
+		if(writetext("\r\n<html><body><a href='..'>..</a><br>\r\n"))
 			return;
 		while((e = readdir(d))) {
 			if(e->d_name[0] == '.') /* ignore hidden files, ., .. */
@@ -246,7 +246,7 @@ responsedirdata(DIR *d) {
 				logerrmsg("snprintf failed, buffer sizeof exceeded");
 				return;
 			}
-			if(writetext(resbuf) == -1)
+			if(writetext(resbuf))
 				return;
 		}
 		writetext("</body></html>\r\n");
@@ -263,9 +263,9 @@ responsedir(void) {
 		reqbuf[len++] = '/';
 		reqbuf[len] = 0;
 		logmsg("redirecting %s to %s%s\n", host, location, reqbuf);
-		if(putresentry(HEADER, HttpMoved, tstamp()) == -1
-		|| putresentry(LOCATION, location, reqbuf) == -1
-		|| putresentry(CONTENTTYPE, texthtml) == -1)
+		if(putresentry(HEADER, HttpMoved, tstamp())
+		|| putresentry(LOCATION, location, reqbuf)
+		|| putresentry(CONTENTTYPE, texthtml))
 			return;
 		if(req.type == GET)
 			writetext("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n");
@@ -305,10 +305,10 @@ responsecgi(void) {
 	if(chdir(cgi_dir) == -1)
 		logerrmsg("chdir to cgi directory %s failed: %s\n", cgi_dir, strerror(errno));
 	if((cgi = popen(cgi_script, "r"))) {
-		if(putresentry(HEADER, HttpOk, tstamp()) == -1)
+		if(putresentry(HEADER, HttpOk, tstamp()))
 			return;
 		while((r = fread(resbuf, 1, MAXBUFLEN, cgi)) > 0) {
-			if(writedata(resbuf, r) == -1) {
+			if(writedata(resbuf, r)) {
 				pclose(cgi);
 				return;
 			}
@@ -317,8 +317,8 @@ responsecgi(void) {
 	}
 	else {
 		logerrmsg("%s requests %s, but cannot run cgi script %s\n", host, cgi_script, reqbuf);
-		if(putresentry(HEADER, HttpNotFound, tstamp()) == -1
-		|| putresentry(CONTENTTYPE, texthtml) == -1)
+		if(putresentry(HEADER, HttpNotFound, tstamp())
+		|| putresentry(CONTENTTYPE, texthtml))
 			return;
 		if(req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
@@ -333,8 +333,8 @@ response(void) {
 	for(p = reqbuf; *p; p++)
 		if(*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
 			logerrmsg("%s requests bogus or hidden file %s\n", host, reqbuf);
-			if(putresentry(HEADER, HttpUnauthorized, tstamp()) == -1
-			|| putresentry(CONTENTTYPE, texthtml) == -1)
+			if(putresentry(HEADER, HttpUnauthorized, tstamp())
+			|| putresentry(CONTENTTYPE, texthtml))
 				;
 			else
 				return;
