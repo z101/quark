@@ -459,14 +459,6 @@ serve(int fd) {
 
 void
 sighandler(int sig) {
-	static const char *signame[64] = {
-		[SIGHUP] = "SIGHUP",
-		[SIGINT] = "SIGINT",
-		[SIGQUIT] = "SIGQUIT",
-		[SIGABRT] = "SIGABRT",
-		[SIGTERM] = "SIGTERM",
-		[SIGCHLD] = "SIGCHLD"
-	};
 	switch(sig) {
 	default: break;
 	case SIGHUP:
@@ -474,7 +466,7 @@ sighandler(int sig) {
 	case SIGQUIT:
 	case SIGABRT:
 	case SIGTERM:
-		logerrmsg("received signal %s, closing down\n", signame[sig] ? signame[sig] : "");
+		logerrmsg("received signal: %s, closing down\n", strsignal(sig));
 		close(fd);
 		running = 0;
 		break;
