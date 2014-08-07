@@ -363,7 +363,7 @@ getreqentry(char *name, char *target, size_t targetlen, char *breakchars) {
 		for(p = res; *p && !strchr(breakchars, *p); ++p);
 		if(!*p)
 			return 1;
-		if((size_t)(p - res) > targetlen)
+		if((size_t)(p - res) >= targetlen)
 			return 1;
 		memcpy(target, res, p - res);
 		target[p - res] = 0;
