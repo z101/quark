@@ -189,9 +189,9 @@ responsefile(void) {
 	struct stat st;
 	time_t t;
 
-	r = stat(reqbuf, &st);
-	if(r == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
-		logerrmsg("%s requests unknown path %s\n", host, reqbuf);
+	if((r = stat(reqbuf, &st)) == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
+		/* file not found */
+		logerrmsg("%s requests unknown file %s\n", host, reqbuf);
 		if(putresentry(HEADER, HttpNotFound, tstamp())
 		|| putresentry(CONTENTTYPE, texthtml))
 			return;
@@ -199,13 +199,14 @@ responsefile(void) {
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
 	}
 	else {
+		/* check if modified */
 		t = st.st_mtim.tv_sec;
 		memcpy(mod, asctime(gmtime(&t)), 24);
 		mod[24] = 0;
-		if(!strcmp(reqmod, mod)) {
-			if(putresentry(HEADER, HttpNotModified, tstamp()))
-				return;
+		if(!strcmp(reqmod, mod) && !putresentry(HEADER, HttpNotModified, tstamp())) {
+			/* not modified, we're done here*/
 		} else {
+			/* determine mime-type */
 			if((p = strrchr(reqbuf, '.'))) {
 				p++;
 				for(i = 0; i < LENGTH(servermimes); i++)
@@ -214,6 +215,7 @@ responsefile(void) {
 						break;
 					}
 			}
+			/* serve file */
 			if(putresentry(HEADER, HttpOk, tstamp())
 			|| putresentry(MODIFIED, mod)
 			|| putresentry(CONTENTLEN, st.st_size)
