@@ -171,11 +171,11 @@ putresentry(int type, ...) {
 void
 responsefiledata(int fd, off_t size) {
 	char buf[BUFSIZ];
-	size_t n;
+	ssize_t n;
 
 	for(; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
 		if(write(req.fd, buf, n) != n)
-			logerrmsg("error writing to client %s: %s\n", host, strerror(errno));
+			logerrmsg("error writing to client %s at %ls: %s\n", host, n, strerror(errno));
 	if(n == -1)
 		logerrmsg("error reading from file: %s\n", strerror(errno));
 }
