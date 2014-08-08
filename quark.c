@@ -55,11 +55,11 @@ enum {
 };
 
 static const char *resentry[] = {
-	[HEADER] = "HTTP/1.1 %s\r\nConnection: close\r\nDate: %s\r\nServer: quark-"VERSION"\r\n",
-	[CONTENTLEN] = "Content-Length: %lu\r\n",
-	[LOCATION] = "Location: %s%s\r\n",
+	[HEADER]      = "HTTP/1.1 %s\r\nConnection: close\r\nDate: %s\r\nServer: quark-"VERSION"\r\n",
+	[CONTENTLEN]  = "Content-Length: %lu\r\n",
+	[LOCATION]    = "Location: %s%s\r\n",
 	[CONTENTTYPE] = "Content-Type: %s\r\n",
-	[MODIFIED] = "Last-Modified: %s\r\n"
+	[MODIFIED]    = "Last-Modified: %s\r\n"
 };
 
 static ssize_t writetext(const char *buf);
@@ -97,8 +97,8 @@ ssize_t
 writedata(const char *buf, size_t buf_len) {
 	ssize_t r, offset;
 
-	for(offset = 0; offset < buf_len; offset += r) {
-		if((r = write(req.fd, buf + offset, buf_len - offset)) == -1) {
+	for (offset = 0; offset < buf_len; offset += r) {
+		if ((r = write(req.fd, buf + offset, buf_len - offset)) == -1) {
 			logerrmsg("client %s closed connection\n", host);
 			return 1;
 		}
@@ -116,10 +116,8 @@ atomiclog(int fd, const char *errstr, va_list ap) {
 	static char buf[512];
 	int n;
 
-	/*
-	assemble the message in buf and write it in one pass
-	to avoid interleaved concurrent writes on a shared fd.
-	*/
+	/* assemble the message in buf and write it in one pass
+	   to avoid interleaved concurrent writes on a shared fd. */
 	n = snprintf(buf, sizeof buf, "%s: ", tstamp());
 	n += vsnprintf(buf + n, sizeof buf - n, errstr, ap);
 	if (n >= sizeof buf)
@@ -160,7 +158,7 @@ putresentry(int type, ...) {
 	va_list ap;
 
 	va_start(ap, type);
-	if(vsnprintf(resbuf, MAXBUFLEN, resentry[type], ap) >= MAXBUFLEN) {
+	if (vsnprintf(resbuf, MAXBUFLEN, resentry[type], ap) >= MAXBUFLEN) {
 		logerrmsg("vsnprintf failed, buffer size exceeded");
 		return -1;
 	}
@@ -173,10 +171,10 @@ responsefiledata(int fd, off_t size) {
 	char buf[BUFSIZ];
 	ssize_t n;
 
-	for(; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
-		if(write(req.fd, buf, n) != n)
+	for (; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
+		if (write(req.fd, buf, n) != n)
 			logerrmsg("error writing to client %s at %ls: %s\n", host, n, strerror(errno));
-	if(n == -1)
+	if (n == -1)
 		logerrmsg("error reading from file: %s\n", strerror(errno));
 }
 
@@ -189,39 +187,38 @@ responsefile(void) {
 	struct stat st;
 	time_t t;
 
-	if((r = stat(reqbuf, &st)) == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
+	if ((r = stat(reqbuf, &st)) == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
 		/* file not found */
 		logerrmsg("%s requests unknown file %s\n", host, reqbuf);
-		if(putresentry(HEADER, HttpNotFound, tstamp())
-		|| putresentry(CONTENTTYPE, texthtml))
+		if (putresentry(HEADER, HttpNotFound, tstamp())
+		 || putresentry(CONTENTTYPE, texthtml))
 			return;
-		if(req.type == GET)
+		if (req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
-	}
-	else {
+	} else {
 		/* check if modified */
 		t = st.st_mtim.tv_sec;
 		memcpy(mod, asctime(gmtime(&t)), 24);
 		mod[24] = 0;
-		if(!strcmp(reqmod, mod) && !putresentry(HEADER, HttpNotModified, tstamp())) {
+		if (!strcmp(reqmod, mod) && !putresentry(HEADER, HttpNotModified, tstamp())) {
 			/* not modified, we're done here*/
 		} else {
 			/* determine mime-type */
-			if((p = strrchr(reqbuf, '.'))) {
+			if ((p = strrchr(reqbuf, '.'))) {
 				p++;
-				for(i = 0; i < LENGTH(servermimes); i++)
-					if(!strcmp(servermimes[i].extension, p)) {
+				for (i = 0; i < LENGTH(servermimes); i++)
+					if (!strcmp(servermimes[i].extension, p)) {
 						mimetype = servermimes[i].mimetype;
 						break;
 					}
 			}
 			/* serve file */
-			if(putresentry(HEADER, HttpOk, tstamp())
-			|| putresentry(MODIFIED, mod)
-			|| putresentry(CONTENTLEN, st.st_size)
-			|| putresentry(CONTENTTYPE, mimetype))
+			if (putresentry(HEADER, HttpOk, tstamp())
+			 || putresentry(MODIFIED, mod)
+			 || putresentry(CONTENTLEN, st.st_size)
+			 || putresentry(CONTENTTYPE, mimetype))
 				return;
-			if(req.type == GET && !writetext("\r\n"))
+			if (req.type == GET && !writetext("\r\n"))
 				responsefiledata(ffd, st.st_size);
 		}
 		close(ffd);
@@ -232,22 +229,22 @@ void
 responsedirdata(DIR *d) {
 	struct dirent *e;
 
-	if(putresentry(HEADER, HttpOk, tstamp())
-	|| putresentry(CONTENTTYPE, texthtml))
+	if (putresentry(HEADER, HttpOk, tstamp())
+	 || putresentry(CONTENTTYPE, texthtml))
 		return;
-	if(req.type == GET) {
-		if(writetext("\r\n<html><body><a href='..'>..</a><br>\r\n"))
+	if (req.type == GET) {
+		if (writetext("\r\n<html><body><a href='..'>..</a><br>\r\n"))
 			return;
-		while((e = readdir(d))) {
-			if(e->d_name[0] == '.') /* ignore hidden files, ., .. */
+		while ((e = readdir(d))) {
+			if (e->d_name[0] == '.') /* ignore hidden files, ., .. */
 				continue;
-			if(snprintf(resbuf, MAXBUFLEN, "<a href='%s%s'>%s</a><br>\r\n",
-				    reqbuf, e->d_name, e->d_name) >= MAXBUFLEN)
+			if (snprintf(resbuf, MAXBUFLEN, "<a href='%s%s'>%s</a><br>\r\n",
+				     reqbuf, e->d_name, e->d_name) >= MAXBUFLEN)
 			{
 				logerrmsg("snprintf failed, buffer sizeof exceeded");
 				return;
 			}
-			if(writetext(resbuf))
+			if (writetext(resbuf))
 				return;
 		}
 		writetext("</body></html>\r\n");
@@ -259,32 +256,32 @@ responsedir(void) {
 	ssize_t len = strlen(reqbuf);
 	DIR *d;
 
-	if((reqbuf[len - 1] != '/') && (len + 1 < MAXBUFLEN)) {
+	if ((reqbuf[len - 1] != '/') && (len + 1 < MAXBUFLEN)) {
 		/* add directory terminator if necessary */
 		reqbuf[len++] = '/';
 		reqbuf[len] = 0;
 		logmsg("redirecting %s to %s%s\n", host, location, reqbuf);
-		if(putresentry(HEADER, HttpMoved, tstamp())
-		|| putresentry(LOCATION, location, reqbuf)
-		|| putresentry(CONTENTTYPE, texthtml))
+		if (putresentry(HEADER, HttpMoved, tstamp())
+		 || putresentry(LOCATION, location, reqbuf)
+		 || putresentry(CONTENTTYPE, texthtml))
 			return;
-		if(req.type == GET)
+		if (req.type == GET)
 			writetext("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n");
 		return;
 	}
-	if(len + strlen(docindex) + 1 < MAXBUFLEN)
+	if (len + strlen(docindex) + 1 < MAXBUFLEN)
 		memcpy(reqbuf + len, docindex, strlen(docindex) + 1);
-	if(access(reqbuf, R_OK) == -1) { /* directory mode */
+	if (access(reqbuf, R_OK) == -1) { /* directory mode */
 		reqbuf[len] = 0; /* cut off docindex again */
-		if((d = opendir(reqbuf))) {
+		if ((d = opendir(reqbuf))) {
 			responsedirdata(d);
 			closedir(d);
-		}
-		else
+		} else {
 			logerrmsg("client %s requests %s but opendir failed: %s\n", host, reqbuf, strerror(errno));
-	}
-	else
+		}
+	} else {
 		responsefile(); /* docindex */
+	}
 }
 
 void
@@ -292,36 +289,35 @@ responsecgi(void) {
 	FILE *cgi;
 	int r;
 
-	if(req.type == GET)
+	if (req.type == GET)
 		setenv("REQUEST_METHOD", "GET", 1);
-	else if(req.type == HEAD)
+	else if (req.type == HEAD)
 		setenv("REQUEST_METHOD", "HEAD", 1);
 	else
 		return;
-	if(*reqhost)
+	if (*reqhost)
 		setenv("SERVER_NAME", reqhost, 1);
 	setenv("SCRIPT_NAME", cgi_script, 1);
 	setenv("REQUEST_URI", reqbuf, 1);
 	logmsg("CGI SERVER_NAME=%s SCRIPT_NAME=%s REQUEST_URI=%s\n", reqhost, cgi_script, reqbuf);
-	if(chdir(cgi_dir) == -1)
+	if (chdir(cgi_dir) == -1)
 		logerrmsg("chdir to cgi directory %s failed: %s\n", cgi_dir, strerror(errno));
-	if((cgi = popen(cgi_script, "r"))) {
-		if(putresentry(HEADER, HttpOk, tstamp()))
+	if ((cgi = popen(cgi_script, "r"))) {
+		if (putresentry(HEADER, HttpOk, tstamp()))
 			return;
-		while((r = fread(resbuf, 1, MAXBUFLEN, cgi)) > 0) {
-			if(writedata(resbuf, r)) {
+		while ((r = fread(resbuf, 1, MAXBUFLEN, cgi)) > 0) {
+			if (writedata(resbuf, r)) {
 				pclose(cgi);
 				return;
 			}
 		}
 		pclose(cgi);
-	}
-	else {
+	} else {
 		logerrmsg("%s requests %s, but cannot run cgi script %s\n", host, cgi_script, reqbuf);
-		if(putresentry(HEADER, HttpNotFound, tstamp())
-		|| putresentry(CONTENTTYPE, texthtml))
+		if (putresentry(HEADER, HttpNotFound, tstamp())
+		 || putresentry(CONTENTTYPE, texthtml))
 			return;
-		if(req.type == GET)
+		if (req.type == GET)
 			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
 	}
 }
@@ -331,23 +327,21 @@ response(void) {
 	char *p;
 	struct stat st;
 
-	for(p = reqbuf; *p; p++)
-		if(*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
+	for (p = reqbuf; *p; p++)
+		if (*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
 			logerrmsg("%s requests bogus or hidden file %s\n", host, reqbuf);
-			if(putresentry(HEADER, HttpUnauthorized, tstamp())
-			|| putresentry(CONTENTTYPE, texthtml))
-				;
-			else
+			if (putresentry(HEADER, HttpUnauthorized, tstamp())
+			 || putresentry(CONTENTTYPE, texthtml))
 				return;
-			if(req.type == GET)
+			if (req.type == GET)
 				writetext("\r\n<html><body>401 Unauthorized</body></html>\r\n");
 			return;
 		}
 	logmsg("%s requests: %s\n", host, reqbuf);
-	if(cgi_mode)
+	if (cgi_mode) {
 		responsecgi();
-	else {
-		if(stat(reqbuf, &st) != -1 && S_ISDIR(st.st_mode))
+	} else {
+		if (stat(reqbuf, &st) != -1 && S_ISDIR(st.st_mode))
 			responsedir();
 		else
 			responsefile();
@@ -358,14 +352,14 @@ int
 getreqentry(char *name, char *target, size_t targetlen, char *breakchars) {
 	char *p, *res;
 
-	if((res = strstr(reqbuf, name))) {
-		for(res = res + strlen(name); *res && (*res == ' ' || *res == '\t'); ++res);
-		if(!*res)
+	if ((res = strstr(reqbuf, name))) {
+		for (res = res + strlen(name); *res && (*res == ' ' || *res == '\t'); ++res);
+		if (!*res)
 			return 1;
-		for(p = res; *p && !strchr(breakchars, *p); ++p);
-		if(!*p)
+		for (p = res; *p && !strchr(breakchars, *p); ++p);
+		if (!*p)
 			return 1;
-		if((size_t)(p - res) >= targetlen)
+		if ((size_t)(p - res) >= targetlen)
 			return 1;
 		memcpy(target, res, p - res);
 		target[p - res] = 0;
@@ -380,14 +374,14 @@ request(void) {
 	int r;
 	size_t offset = 0;
 
-	/* read request into reqbuf */
-	for( ; r > 0 && offset < MAXBUFLEN && (!strstr(reqbuf, "\r\n") || !strstr(reqbuf, "\n")); ) {
-		if((r = read(req.fd, reqbuf + offset, MAXBUFLEN - offset)) == -1) {
+	/* read request into reqbuf (MAXBUFLEN byte of reqbuf is emergency 0 terminator */
+	for (; r > 0 && offset < MAXBUFLEN && (!strstr(reqbuf, "\r\n") || !strstr(reqbuf, "\n"));) {
+		if ((r = read(req.fd, reqbuf + offset, MAXBUFLEN - offset)) == -1) {
 			logerrmsg("read: %s\n", strerror(errno));
 			return -1;
 		}
 		offset += r;
-		reqbuf[offset] = 0; /* MAXBUFLEN byte of reqbuf is emergency 0 terminator */
+		reqbuf[offset] = 0;
 	}
 
 	/* extract host and mod */
@@ -397,13 +391,13 @@ request(void) {
 		goto invalid_request;
 
 	/* extract method */
-	for(p = reqbuf; *p && *p != '\r' && *p != '\n'; p++);
-	if(*p == '\r' || *p == '\n') {
+	for (p = reqbuf; *p && *p != '\r' && *p != '\n'; p++);
+	if (*p == '\r' || *p == '\n') {
 		*p = 0;
 		/* check command */
-		if(!strncmp(reqbuf, "GET ", 4) && reqbuf[4] == '/')
+		if (!strncmp(reqbuf, "GET ", 4) && reqbuf[4] == '/')
 			req.type = GET;
-		else if(!strncmp(reqbuf, "HEAD ", 5) && reqbuf[5] == '/')
+		else if (!strncmp(reqbuf, "HEAD ", 5) && reqbuf[5] == '/')
 			req.type = HEAD;
 		else
 			goto invalid_request;
@@ -412,11 +406,11 @@ request(void) {
 	}
 
 	/* determine path */
-	for(res = reqbuf + req.type; *res && *(res + 1) == '/'; res++); /* strip '/' */
-	if(!*res)
+	for (res = reqbuf + req.type; *res && *(res + 1) == '/'; res++); /* strip '/' */
+	if (!*res)
 		goto invalid_request;
-	for(p = res; *p && *p != ' ' && *p != '\t'; p++);
-	if(!*p)
+	for (p = res; *p && *p != ' ' && *p != '\t'; p++);
+	if (!*p)
 		goto invalid_request;
 	*p = 0;
 	memmove(reqbuf, res, (p - res) + 1);
@@ -432,28 +426,29 @@ serve(int fd) {
 	socklen_t salen;
 	struct sockaddr sa;
 
-	while(running) {
+	while (running) {
 		salen = sizeof sa;
-		if((req.fd = accept(fd, &sa, &salen)) == -1) {
+		if ((req.fd = accept(fd, &sa, &salen)) == -1) {
 			/* el cheapo socket release */
 			logerrmsg("cannot accept: %s, sleep a second...\n", strerror(errno));
 			sleep(1);
 			continue;
 		}
 		result = fork();
-		if(result == 0) {
+		if (result == 0) {
 			close(fd);
 			host[0] = 0;
 			getnameinfo(&sa, salen, host, sizeof host, NULL, 0, NI_NOFQDN);
 			result = request();
 			shutdown(req.fd, SHUT_RD);
-			if(result == 0)
+			if (result == 0)
 				response();
 			shutdown(req.fd, SHUT_WR);
 			close(req.fd);
 			exit(EXIT_SUCCESS);
-		} else if (result == -1)
+		} else if (result == -1) {
 			logerrmsg("fork failed: %s\n", strerror(errno));
+		}
 		close(req.fd);
 	}
 	logmsg("shutting down\n");
@@ -495,12 +490,10 @@ main(int argc, char *argv[]) {
 	} ARGEND;
 
 	/* sanity checks */
-	if(user)
-		if(!(upwd = getpwnam(user)))
-			die("error: invalid user %s\n", user);
-	if(group)
-		if(!(gpwd = getgrnam(group)))
-			die("error: invalid group %s\n", group);
+	if (user && !(upwd = getpwnam(user)))
+		die("error: invalid user %s\n", user);
+	if (group && !(gpwd = getgrnam(group)))
+		die("error: invalid group %s\n", group);
 
 	signal(SIGCHLD, sighandler);
 	signal(SIGHUP, sighandler);
@@ -515,48 +508,46 @@ main(int argc, char *argv[]) {
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
-	if((i = getaddrinfo(servername, serverport, &hints, &ai)))
+	if ((i = getaddrinfo(servername, serverport, &hints, &ai)))
 		die("error: getaddrinfo: %s\n", gai_strerror(i));
-	if((fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
+	if ((fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
 		freeaddrinfo(ai);
 		die("error: socket: %s\n", strerror(errno));
 	}
-	if(bind(fd, ai->ai_addr, ai->ai_addrlen) == -1) {
+	if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1) {
 		close(fd);
 		freeaddrinfo(ai);
 		die("error: bind: %s\n", strerror(errno));
 	}
-	if(listen(fd, SOMAXCONN) == -1) {
+	if (listen(fd, SOMAXCONN) == -1) {
 		close(fd);
 		freeaddrinfo(ai);
 		die("error: listen: %s\n", strerror(errno));
 	}
 
-	if(!strcmp(serverport, "80"))
+	if (!strcmp(serverport, "80"))
 		i = snprintf(location, sizeof location, "http://%s", servername);
 	else
 		i = snprintf(location, sizeof location, "http://%s:%s", servername, serverport);
-	if(i >= sizeof location) {
+	if (i >= sizeof location) {
 		close(fd);
 		freeaddrinfo(ai);
 		die("error: location too long\n");
 	}
 
-	if(chdir(docroot) == -1)
+	if (chdir(docroot) == -1)
 		die("error: chdir %s: %s\n", docroot, strerror(errno));
-	if(chroot(".") == -1)
+	if (chroot(".") == -1)
 		die("error: chroot .: %s\n", strerror(errno));
 
-	if(gpwd)
-		if(setgid(gpwd->gr_gid) == -1)
-			die("error: cannot set group id\n");
-	if(upwd)
-		if(setuid(upwd->pw_uid) == -1)
-			die("error: cannot set user id\n");
+	if (gpwd && setgid(gpwd->gr_gid) == -1)
+		die("error: cannot set group id\n");
+	if (upwd && setuid(upwd->pw_uid) == -1)
+		die("error: cannot set user id\n");
 
-	if(getuid() == 0)
+	if (getuid() == 0)
 		die("error: won't run with root permissions, choose another user\n");
-	if(getgid() == 0)
+	if (getgid() == 0)
 		die("error: won't run with root permissions, choose another group\n");
 
 	logmsg("listening on %s:%s using %s as root directory\n", servername, serverport, docroot);
