@@ -181,7 +181,7 @@ responsefiledata(int fd, off_t size) {
 
 void
 responsefile(void) {
-	const char *mimetype;
+	const char *mimetype = "application/octet-stream";
 	char *p;
 	char mod[25];
 	int i, ffd, r;
@@ -209,9 +209,7 @@ responsefile(void) {
 			if ((p = strrchr(reqbuf, '.'))) {
 				p++;
 				for (i = 0; i < LENGTH(servermimes); i++)
-					if (!strncmp(servermimes[i].extension, p,
-						     strlen(servermimes[i].extension)))
-					{
+					if (!strcmp(servermimes[i].extension, p)) {
 						mimetype = servermimes[i].mimetype;
 						break;
 					}
