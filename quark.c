@@ -478,7 +478,7 @@ tstamp(void) {
 	static char res[30];
 	time_t t = time(NULL);
 
-	strftime(res, sizeof res, "%a, %d %b %Y %H:%M:%S %Z", localtime(&t));
+	strftime(res, sizeof res, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
 	return res;
 }
 
