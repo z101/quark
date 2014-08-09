@@ -475,11 +475,10 @@ sighandler(int sig) {
 
 char *
 tstamp(void) {
-	static char res[25];
+	static char res[30];
 	time_t t = time(NULL);
 
-	memcpy(res, asctime(gmtime(&t)), 24);
-	res[24] = 0;
+	strftime(res, sizeof res, "%a, %d %b %Y %H:%M:%S %Z", localtime(&t));
 	return res;
 }
 
