@@ -209,7 +209,9 @@ responsefile(void) {
 			if ((p = strrchr(reqbuf, '.'))) {
 				p++;
 				for (i = 0; i < LENGTH(servermimes); i++)
-					if (!strcmp(servermimes[i].extension, p)) {
+					if (!strncmp(servermimes[i].extension, p,
+						     strlen(servermimes[i].extension)))
+					{
 						mimetype = servermimes[i].mimetype;
 						break;
 					}
