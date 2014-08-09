@@ -181,7 +181,7 @@ responsefiledata(int fd, off_t size) {
 
 void
 responsefile(void) {
-	const char *mimetype = "unknown";
+	const char *mimetype;
 	char *p;
 	char mod[25];
 	int i, ffd, r;

@@ -24,4 +24,5 @@ static const MimeType servermimes[] = {
 	{ "gz",   "application/x-gtar" },
 	{ "pdf",  "application/x-pdf" },
 	{ "tar",  "application/tar" },
+	{ "",     "application/octet-stream" }
 };
