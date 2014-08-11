@@ -62,24 +62,24 @@ static const char *resentry[] = {
 	[MODIFIED]    = "Last-Modified: %s\r\n"
 };
 
-static ssize_t writetext(const char *buf);
-static ssize_t writedata(const char *buf, size_t buflen);
+static char *tstamp(void);
+static int writedata(const char *buf, size_t buflen);
+static int writetext(const char *buf);
 static void atomiclog(int fd, const char *errstr, va_list ap);
 static void logmsg(const char *errstr, ...);
 static void logerrmsg(const char *errstr, ...);
 static void die(const char *errstr, ...);
 static int putresentry(int type, ...);
-static void response(void);
-static void responsecgi(void);
-static void responsedir(void);
-static void responsedirdata(DIR *d);
-static void responsefile(void);
 static void responsefiledata(int fd, off_t size);
+static void responsefile(void);
+static void responsedirdata(DIR *d);
+static void responsedir(void);
+static void responsecgi(void);
+static void response(void);
 static int getreqentry(char *name, char *target, size_t targetlen, char *breakchars);
 static int request(void);
 static void serve(int fd);
 static void sighandler(int sig);
-static char *tstamp(void);
 
 #include "config.h"
 
@@ -94,7 +94,16 @@ static char reqmod[256];
 static int fd;
 static Request req;
 
-ssize_t
+char *
+tstamp(void) {
+	static char res[30];
+	time_t t = time(NULL);
+
+	strftime(res, sizeof res, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+	return res;
+}
+
+int
 writedata(const char *buf, size_t buf_len) {
 	ssize_t r, offset;
 
@@ -107,7 +116,7 @@ writedata(const char *buf, size_t buf_len) {
 	return 0;
 }
 
-ssize_t
+int
 writetext(const char *buf) {
 	return writedata(buf, strlen(buf));
 }
@@ -115,7 +124,7 @@ writetext(const char *buf) {
 void
 atomiclog(int fd, const char *errstr, va_list ap) {
 	static char buf[512];
-	int n;
+	size_t n;
 
 	/* assemble the message in buf and write it in one pass
 	   to avoid interleaved concurrent writes on a shared fd. */
@@ -182,9 +191,8 @@ responsefiledata(int fd, off_t size) {
 void
 responsefile(void) {
 	const char *mimetype = "application/octet-stream";
-	char *p;
-	char mod[30];
-	int i, ffd, r;
+	char mod[30], *p;
+	int r, ffd;
 	struct stat st;
 	time_t t;
 
@@ -207,9 +215,9 @@ responsefile(void) {
 			/* determine mime-type */
 			if ((p = strrchr(reqbuf, '.'))) {
 				p++;
-				for (i = 0; i < LENGTH(servermimes); i++)
-					if (!strcmp(servermimes[i].extension, p)) {
-						mimetype = servermimes[i].mimetype;
+				for (r = 0; r < LENGTH(servermimes); r++)
+					if (!strcmp(servermimes[r].extension, p)) {
+						mimetype = servermimes[r].mimetype;
 						break;
 					}
 			}
@@ -256,7 +264,7 @@ responsedirdata(DIR *d) {
 
 void
 responsedir(void) {
-	ssize_t len = strlen(reqbuf);
+	size_t len = strlen(reqbuf);
 	DIR *d;
 
 	if ((reqbuf[len - 1] != '/') && (len + 1 < MAXBUFLEN)) {
@@ -291,7 +299,7 @@ responsedir(void) {
 void
 responsecgi(void) {
 	FILE *cgi;
-	int r;
+	size_t r;
 
 	if (req.type == GET)
 		setenv("REQUEST_METHOD", "GET", 1);
@@ -376,7 +384,7 @@ getreqentry(char *name, char *target, size_t targetlen, char *breakchars) {
 int
 request(void) {
 	char *p, *res;
-	int r;
+	ssize_t r;
 	size_t offset = 0;
 
 	/* read request into reqbuf (MAXBUFLEN byte of reqbuf is emergency 0 terminator */
@@ -470,15 +478,6 @@ sighandler(int sig) {
 		close(fd);
 		running = 0;
 	}
-}
-
-char *
-tstamp(void) {
-	static char res[30];
-	time_t t = time(NULL);
-
-	strftime(res, sizeof res, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-	return res;
 }
 
 int
