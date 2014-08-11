@@ -183,7 +183,7 @@ void
 responsefile(void) {
 	const char *mimetype = "application/octet-stream";
 	char *p;
-	char mod[25];
+	char mod[30];
 	int i, ffd, r;
 	struct stat st;
 	time_t t;
@@ -199,8 +199,7 @@ responsefile(void) {
 	} else {
 		/* check if modified */
 		t = st.st_mtim.tv_sec;
-		memcpy(mod, asctime(gmtime(&t)), 24);
-		mod[24] = 0;
+		strftime(mod, sizeof mod, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
 		if (!strcmp(reqmod, mod) && !putresentry(HEADER, HttpNotModified, tstamp())) {
 			/* not modified, we're done here*/
 			status = 304;
