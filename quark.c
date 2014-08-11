@@ -12,6 +12,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -448,8 +449,21 @@ serve(int fd) {
 		result = fork();
 		if (result == 0) {
 			close(fd);
-			host[0] = 0;
-			getnameinfo(&sa, salen, host, sizeof host, NULL, 0, NI_NOFQDN);
+
+			/* get host */
+			switch(sa.sa_family) {
+				case AF_INET:
+					inet_ntop(AF_INET, &(((struct sockaddr_in *)&sa)->sin_addr),
+						  host, sizeof host);
+					break;
+				case AF_INET6:
+					inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&sa)->sin6_addr),
+						  host, sizeof host);
+					break;
+				default:
+					host[0] = 0;
+			}
+
 			result = request();
 			shutdown(req.fd, SHUT_RD);
 			status = -1;
