@@ -24,6 +24,13 @@ char *argv0;
 #define MAXBUFLEN  1024
 #define MIN(x,y)   ((x) < (y) ? (x) : (y))
 
+#define HttpOk           "200 OK"
+#define HttpMoved        "301 Moved Permanently"
+#define HttpNotModified  "304 Not Modified"
+#define HttpUnauthorized "401 Unauthorized"
+#define HttpNotFound     "404 Not Found"
+#define texthtml         "text/html"
+
 enum {
 	GET  = 4,
 	HEAD = 5,
@@ -38,13 +45,6 @@ typedef struct {
 	int type;
 	int fd;
 } Request;
-
-static const char HttpOk[]           = "200 OK";
-static const char HttpMoved[]        = "301 Moved Permanently";
-static const char HttpNotModified[]  = "304 Not Modified";
-static const char HttpUnauthorized[] = "401 Unauthorized";
-static const char HttpNotFound[]     = "404 Not Found";
-static const char texthtml[]         = "text/html";
 
 enum {
 	HEADER,
@@ -203,7 +203,7 @@ responsefile(void) {
 			return;
 		status = 404;
 		if (req.type == GET)
-			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
+			writetext("\r\n<html><body>"HttpNotFound"</body></html>\r\n");
 	} else {
 		/* check if modified */
 		t = st.st_mtim.tv_sec;
@@ -278,7 +278,7 @@ responsedir(void) {
 		status = 301;
 		reqbuf[len] = 0;
 		if (req.type == GET)
-			writetext("\r\n<html><body>301 Moved Permanently</a></body></html>\r\n");
+			writetext("\r\n<html><body>"HttpMoved"</a></body></html>\r\n");
 		return;
 	}
 	if (len + strlen(docindex) + 1 < MAXBUFLEN)
@@ -332,7 +332,7 @@ responsecgi(void) {
 			return;
 		status = 404;
 		if (req.type == GET)
-			writetext("\r\n<html><body>404 Not Found</body></html>\r\n");
+			writetext("\r\n<html><body>"HttpNotFound"</body></html>\r\n");
 	}
 }
 
@@ -348,7 +348,7 @@ response(void) {
 				return;
 			status = 401;
 			if (req.type == GET)
-				writetext("\r\n<html><body>401 Unauthorized</body></html>\r\n");
+				writetext("\r\n<html><body>"HttpUnauthorized"</body></html>\r\n");
 			return;
 		}
 	if (cgi_mode) {
