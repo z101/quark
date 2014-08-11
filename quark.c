@@ -62,7 +62,7 @@ static const char *resentry[] = {
 	[MODIFIED]    = "Last-Modified: %s\r\n"
 };
 
-static char *tstamp(void);
+static char *tstamp(time_t t);
 static int writedata(const char *buf, size_t buflen);
 static int writetext(const char *buf);
 static void atomiclog(int fd, const char *errstr, va_list ap);
@@ -95,10 +95,11 @@ static int fd;
 static Request req;
 
 char *
-tstamp(void) {
+tstamp(time_t t) {
 	static char res[30];
-	time_t t = time(NULL);
 
+	if (!t)
+		t = time(NULL);
 	strftime(res, sizeof res, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
 	return res;
 }
@@ -128,7 +129,7 @@ atomiclog(int fd, const char *errstr, va_list ap) {
 
 	/* assemble the message in buf and write it in one pass
 	   to avoid interleaved concurrent writes on a shared fd. */
-	n = snprintf(buf, sizeof buf, "%s\t", tstamp());
+	n = snprintf(buf, sizeof buf, "%s\t", tstamp(0));
 	n += vsnprintf(buf + n, sizeof buf - n, errstr, ap);
 	if (n >= sizeof buf)
 		n = sizeof buf - 1;
@@ -194,11 +195,10 @@ responsefile(void) {
 	char mod[30], *p;
 	int r, ffd;
 	struct stat st;
-	time_t t;
 
 	if ((r = stat(reqbuf, &st)) == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
 		/* file not found */
-		if (putresentry(HEADER, HttpNotFound, tstamp())
+		if (putresentry(HEADER, HttpNotFound, tstamp(0))
 		 || putresentry(CONTENTTYPE, texthtml))
 			return;
 		status = 404;
@@ -206,9 +206,7 @@ responsefile(void) {
 			writetext("\r\n<html><body>"HttpNotFound"</body></html>\r\n");
 	} else {
 		/* check if modified */
-		t = st.st_mtim.tv_sec;
-		strftime(mod, sizeof mod, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
-		if (!strcmp(reqmod, mod) && !putresentry(HEADER, HttpNotModified, tstamp())) {
+		if (!strcmp(reqmod, tstamp(st.st_mtim.tv_sec)) && !putresentry(HEADER, HttpNotModified, tstamp(0))) {
 			/* not modified, we're done here*/
 			status = 304;
 		} else {
@@ -222,7 +220,7 @@ responsefile(void) {
 					}
 			}
 			/* serve file */
-			if (putresentry(HEADER, HttpOk, tstamp())
+			if (putresentry(HEADER, HttpOk, tstamp(0))
 			 || putresentry(MODIFIED, mod)
 			 || putresentry(CONTENTLEN, st.st_size)
 			 || putresentry(CONTENTTYPE, mimetype))
@@ -239,7 +237,7 @@ void
 responsedirdata(DIR *d) {
 	struct dirent *e;
 
-	if (putresentry(HEADER, HttpOk, tstamp())
+	if (putresentry(HEADER, HttpOk, tstamp(0))
 	 || putresentry(CONTENTTYPE, texthtml))
 		return;
 	status = 200;
@@ -271,7 +269,7 @@ responsedir(void) {
 		/* add directory terminator if necessary */
 		reqbuf[len] = '/';
 		reqbuf[len + 1] = 0;
-		if (putresentry(HEADER, HttpMoved, tstamp())
+		if (putresentry(HEADER, HttpMoved, tstamp(0))
 		 || putresentry(LOCATION, location, reqbuf)
 		 || putresentry(CONTENTTYPE, texthtml))
 			return;
@@ -315,7 +313,7 @@ responsecgi(void) {
 	if (chdir(cgi_dir) == -1)
 		logerrmsg("error\tchdir to cgi directory %s failed: %s\n", cgi_dir, strerror(errno));
 	if ((cgi = popen(cgi_script, "r"))) {
-		if (putresentry(HEADER, HttpOk, tstamp()))
+		if (putresentry(HEADER, HttpOk, tstamp(0)))
 			return;
 		status = 200;
 		while ((r = fread(resbuf, 1, MAXBUFLEN, cgi)) > 0) {
@@ -327,7 +325,7 @@ responsecgi(void) {
 		pclose(cgi);
 	} else {
 		logerrmsg("error\t%s requests %s, but cannot run cgi script %s\n", host, cgi_script, reqbuf);
-		if (putresentry(HEADER, HttpNotFound, tstamp())
+		if (putresentry(HEADER, HttpNotFound, tstamp(0))
 		 || putresentry(CONTENTTYPE, texthtml))
 			return;
 		status = 404;
@@ -343,7 +341,7 @@ response(void) {
 
 	for (p = reqbuf; *p; p++)
 		if (*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
-			if (putresentry(HEADER, HttpUnauthorized, tstamp())
+			if (putresentry(HEADER, HttpUnauthorized, tstamp(0))
 			 || putresentry(CONTENTTYPE, texthtml))
 				return;
 			status = 401;
