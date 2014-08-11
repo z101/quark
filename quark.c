@@ -25,12 +25,12 @@ char *argv0;
 #define MAXBUFLEN  1024
 #define MIN(x,y)   ((x) < (y) ? (x) : (y))
 
-#define HttpOk           "200 OK"
-#define HttpMoved        "301 Moved Permanently"
-#define HttpNotModified  "304 Not Modified"
-#define HttpUnauthorized "401 Unauthorized"
-#define HttpNotFound     "404 Not Found"
-#define texthtml         "text/html"
+#define HttpOk          "200 OK"
+#define HttpMoved       "301 Moved Permanently"
+#define HttpNotModified "304 Not Modified"
+#define HttpForbidden   "403 Forbidden"
+#define HttpNotFound    "404 Not Found"
+#define texthtml        "text/html"
 
 enum {
 	GET  = 4,
@@ -342,12 +342,12 @@ response(void) {
 
 	for (p = reqbuf; *p; p++)
 		if (*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
-			if (putresentry(HEADER, HttpUnauthorized, tstamp(0))
+			if (putresentry(HEADER, HttpForbidden, tstamp(0))
 			 || putresentry(CONTENTTYPE, texthtml))
 				return;
-			status = 401;
+			status = 403;
 			if (req.type == GET)
-				writetext("\r\n<html><body>"HttpUnauthorized"</body></html>\r\n");
+				writetext("\r\n<html><body>"HttpForbidden"</body></html>\r\n");
 			return;
 		}
 	if (cgi_mode) {
