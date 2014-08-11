@@ -513,21 +513,21 @@ main(int argc, char *argv[]) {
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
-	if ((i = getaddrinfo(servername, serverport, &hints, &ai)))
-		die("error\tgetaddrinfo: %s\n", gai_strerror(i));
+	if ((i = getaddrinfo(servername, serverport, &hints, &ai))) {
+		logerrmsg("error\tgetaddrinfo: %s\n", gai_strerror(i));
+		goto err;
+	}
 	if ((fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
-		freeaddrinfo(ai);
-		die("error\tsocket: %s\n", strerror(errno));
+		logerrmsg("error\tsocket: %s\n", strerror(errno));
+		goto err;
 	}
 	if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1) {
-		close(fd);
-		freeaddrinfo(ai);
-		die("error\tbind: %s\n", strerror(errno));
+		logerrmsg("error\tbind: %s\n", strerror(errno));
+		goto err;
 	}
 	if (listen(fd, SOMAXCONN) == -1) {
-		close(fd);
-		freeaddrinfo(ai);
-		die("error\tlisten: %s\n", strerror(errno));
+		logerrmsg("error\tlisten: %s\n", strerror(errno));
+		goto err;
 	}
 
 	if (!strcmp(serverport, "80"))
@@ -535,29 +535,47 @@ main(int argc, char *argv[]) {
 	else
 		i = snprintf(location, sizeof location, "http://%s:%s", servername, serverport);
 	if (i >= sizeof location) {
-		close(fd);
-		freeaddrinfo(ai);
-		die("error\tlocation too long\n");
+		logerrmsg("error\tlocation too long\n");
+		goto err;
 	}
 
-	if (chdir(docroot) == -1)
-		die("error\tchdir %s: %s\n", docroot, strerror(errno));
-	if (chroot(".") == -1)
-		die("error\tchroot .: %s\n", strerror(errno));
+	if (chdir(docroot) == -1) {
+		logerrmsg("error\tchdir %s: %s\n", docroot, strerror(errno));
+		goto err;
+	}
+	if (chroot(".") == -1) {
+		logerrmsg("error\tchroot .: %s\n", strerror(errno));
+		goto err;
+	}
 
-	if (gpwd && setgid(gpwd->gr_gid) == -1)
-		die("error\tcannot set group id\n");
-	if (upwd && setuid(upwd->pw_uid) == -1)
-		die("error\tcannot set user id\n");
+	if (gpwd && setgid(gpwd->gr_gid) == -1) {
+		logerrmsg("error\tcannot set group id\n");
+		goto err;
+	}
+	if (upwd && setuid(upwd->pw_uid) == -1) {
+		logerrmsg("error\tcannot set user id\n");
+		goto err;
+	}
 
-	if (getuid() == 0)
-		die("error\twon't run with root permissions, choose another user\n");
-	if (getgid() == 0)
-		die("error\twon't run with root permissions, choose another group\n");
+	if (getuid() == 0) {
+		logerrmsg("error\twon't run with root permissions, choose another user\n");
+		goto err;
+	}
+	if (getgid() == 0) {
+		logerrmsg("error\twon't run with root permissions, choose another group\n");
+		goto err;
+	}
 
 	logmsg("ready\t%s:%s\t%s\n", servername, serverport, docroot);
 
 	serve(fd); /* main loop */
+	close(fd);
 	freeaddrinfo(ai);
-	return 0;
+	return EXIT_SUCCESS;
+err:
+	if (fd)
+		close(fd);
+	if (ai)
+		freeaddrinfo(ai);
+	return EXIT_FAILURE;
 }
