@@ -56,7 +56,10 @@ enum {
 };
 
 static const char *resentry[] = {
-	[HEADER]      = "HTTP/1.1 %s\r\nConnection: close\r\nDate: %s\r\nServer: quark-"VERSION"\r\n",
+	[HEADER]      = "HTTP/1.1 %s\r\n"
+			"Connection: close\r\n"
+			"Date: %s\r\n"
+			"Server: quark-"VERSION"\r\n",
 	[CONTENTLEN]  = "Content-Length: %lu\r\n",
 	[LOCATION]    = "Location: %s%s\r\n",
 	[CONTENTTYPE] = "Content-Type: %s\r\n",
@@ -185,7 +188,8 @@ responsefiledata(int fd, off_t size) {
 
 	for (; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
 		if (write(req.fd, buf, n) != n)
-			logerrmsg("error writing to client %s at %ls: %s\n", host, n, strerror(errno));
+			logerrmsg("error writing to client %s at %ls: %s\n",
+				  host, n, strerror(errno));
 	if (n == -1)
 		logerrmsg("error reading from file: %s\n", strerror(errno));
 }
@@ -207,7 +211,8 @@ responsefile(void) {
 			writetext("\r\n<html><body>"HttpNotFound"</body></html>\r\n");
 	} else {
 		/* check if modified */
-		if (!strcmp(reqmod, tstamp(st.st_mtim.tv_sec)) && !putresentry(HEADER, HttpNotModified, tstamp(0))) {
+		if (!strcmp(reqmod, tstamp(st.st_mtim.tv_sec))
+		 && !putresentry(HEADER, HttpNotModified, tstamp(0))) {
 			/* not modified, we're done here*/
 			status = 304;
 		} else {
@@ -288,7 +293,8 @@ responsedir(void) {
 			responsedirdata(d);
 			closedir(d);
 		} else {
-			logerrmsg("client %s requests %s but opendir failed: %s\n", host, reqbuf, strerror(errno));
+			logerrmsg("client %s requests %s but opendir failed: %s\n",
+				  host, reqbuf, strerror(errno));
 		}
 	} else {
 		responsefile(); /* docindex */
@@ -310,9 +316,11 @@ responsecgi(void) {
 		setenv("SERVER_NAME", reqhost, 1);
 	setenv("SCRIPT_NAME", cgi_script, 1);
 	setenv("REQUEST_URI", reqbuf, 1);
-	logmsg("CGI SERVER_NAME=%s SCRIPT_NAME=%s REQUEST_URI=%s\n", reqhost, cgi_script, reqbuf);
+	logmsg("CGI SERVER_NAME=%s SCRIPT_NAME=%s REQUEST_URI=%s\n",
+	       reqhost, cgi_script, reqbuf);
 	if (chdir(cgi_dir) == -1)
-		logerrmsg("error\tchdir to cgi directory %s failed: %s\n", cgi_dir, strerror(errno));
+		logerrmsg("error\tchdir to cgi directory %s failed: %s\n",
+			  cgi_dir, strerror(errno));
 	if ((cgi = popen(cgi_script, "r"))) {
 		if (putresentry(HEADER, HttpOk, tstamp(0)))
 			return;
@@ -325,7 +333,8 @@ responsecgi(void) {
 		}
 		pclose(cgi);
 	} else {
-		logerrmsg("error\t%s requests %s, but cannot run cgi script %s\n", host, cgi_script, reqbuf);
+		logerrmsg("error\t%s requests %s, but cannot run cgi script %s\n",
+			  host, cgi_script, reqbuf);
 		if (putresentry(HEADER, HttpNotFound, tstamp(0))
 		 || putresentry(CONTENTTYPE, texthtml))
 			return;
@@ -341,7 +350,8 @@ response(void) {
 	struct stat st;
 
 	for (p = reqbuf; *p; p++)
-		if (*p == '\\' || (*p == '/' && *(p + 1) == '.')) { /* don't serve bogus or hidden files */
+		if (*p == '\\' || (*p == '/' && *(p + 1) == '.')) {
+			/* don't serve bogus or hidden files */
 			if (putresentry(HEADER, HttpForbidden, tstamp(0))
 			 || putresentry(CONTENTTYPE, texthtml))
 				return;
