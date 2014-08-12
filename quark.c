@@ -95,7 +95,7 @@ static char reqbuf[MAXBUFLEN+1];
 static char resbuf[MAXBUFLEN+1];
 static char reqhost[256];
 static char reqmod[256];
-static int fd;
+static int fd = -1;
 static Request req;
 
 char *
@@ -504,7 +504,7 @@ sighandler(int sig) {
 
 int
 main(int argc, char *argv[]) {
-	struct addrinfo hints, *ai;
+	struct addrinfo hints, *ai = NULL;
 	struct passwd *upwd;
 	struct group *gpwd;
 	int i;
@@ -595,7 +595,7 @@ main(int argc, char *argv[]) {
 	freeaddrinfo(ai);
 	return EXIT_SUCCESS;
 err:
-	if (fd)
+	if (fd != -1)
 		close(fd);
 	if (ai)
 		freeaddrinfo(ai);
