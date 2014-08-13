@@ -531,6 +531,7 @@ main(int argc, char *argv[]) {
 	signal(SIGQUIT, sighandler);
 	signal(SIGABRT, sighandler);
 	signal(SIGTERM, sighandler);
+	signal(SIGPIPE, SIG_IGN);
 
 	/* init */
 	setbuf(stdout, NULL); /* unbuffered stdout */
