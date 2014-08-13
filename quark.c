@@ -397,13 +397,15 @@ request(void) {
 	size_t offset = 0;
 
 	/* read request into reqbuf (MAXBUFLEN byte of reqbuf is emergency 0 terminator */
-	for (; r > 0 && offset < MAXBUFLEN && (!strstr(reqbuf, "\r\n") || !strstr(reqbuf, "\n"));) {
-		if ((r = read(req.fd, reqbuf + offset, MAXBUFLEN - offset)) == -1) {
-			logerrmsg("error\tread: %s\n", strerror(errno));
-			return -1;
-		}
+	for (; (r = read(req.fd, reqbuf + offset, MAXBUFLEN - offset)) > 0 && offset < MAXBUFLEN
+		&& (!strstr(reqbuf, "\r\n") || !strstr(reqbuf, "\n")); )
+	{
 		offset += r;
 		reqbuf[offset] = 0;
+	}
+	if (r == -1) {
+		logerrmsg("error\tread: %s\n", strerror(errno));
+		return -1;
 	}
 
 	/* extract host and mod */
