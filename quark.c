@@ -461,6 +461,7 @@ serve(int fd) {
 			close(fd);
 
 			/* get host */
+			host[0] = 0;
 			switch(sa.sa_family) {
 				case AF_INET:
 					inet_ntop(AF_INET, &(((struct sockaddr_in *)&sa)->sin_addr),
@@ -470,8 +471,6 @@ serve(int fd) {
 					inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&sa)->sin6_addr),
 						  host, sizeof host);
 					break;
-				default:
-					host[0] = 0;
 			}
 
 			result = request();
