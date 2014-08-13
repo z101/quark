@@ -91,8 +91,8 @@ static char location[256];
 static int running = 1;
 static int status;
 static char host[NI_MAXHOST];
-static char reqbuf[MAXBUFLEN+1];
-static char resbuf[MAXBUFLEN+1];
+static char reqbuf[MAXBUFLEN];
+static char resbuf[MAXBUFLEN];
 static char reqhost[256];
 static char reqmod[256];
 static int fd = -1;
@@ -115,7 +115,7 @@ writedata(const char *buf, size_t buf_len) {
 	for (offset = 0; offset < buf_len; offset += r) {
 		if ((r = write(req.fd, buf + offset, buf_len - offset)) == -1) {
 			logerrmsg("client %s closed connection\n", host);
-			return 1;
+			return -1;
 		}
 	}
 	return 0;
