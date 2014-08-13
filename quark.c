@@ -211,8 +211,9 @@ responsefile(void) {
 		if (req.type == GET)
 			writetext("\r\n<html><body>"HttpNotFound"</body></html>\r\n");
 	} else {
+		snprintf(mod, sizeof(mod), "%s", tstamp(st.st_mtim.tv_sec));
 		/* check if modified */
-		if (!strcmp(reqmod, tstamp(st.st_mtim.tv_sec))
+		if (!strcmp(reqmod, mod)
 		 && !putresentry(HEADER, HttpNotModified, tstamp(0))) {
 			/* not modified, we're done here*/
 			status = 304;
