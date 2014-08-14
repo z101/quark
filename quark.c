@@ -307,6 +307,7 @@ void
 responsecgi(void) {
 	FILE *cgi;
 	size_t r;
+	char *q;
 
 	if (req.type == GET)
 		setenv("REQUEST_METHOD", "GET", 1);
@@ -316,8 +317,21 @@ responsecgi(void) {
 		return;
 	if (*reqhost)
 		setenv("SERVER_NAME", reqhost, 1);
+	if((q = strchr(reqbuf, '?'))) {
+		setenv("QUERY_STRING", q + 1, 1);
+		*q = '\0';
+		setenv("PATH_INFO", reqbuf, 1);
+		*q = '?';
+	} else {
+		setenv("QUERY_STRING", "", 1);
+		setenv("PATH_INFO", reqbuf, 1);
+	}
+	setenv("SERVER_PORT", serverport, 1);
+	setenv("SERVER_SOFTWARE", "quark-"VERSION, 1);
 	setenv("SCRIPT_NAME", cgi_script, 1);
+	setenv("REMOTE_ADDR", host, 1);
 	setenv("REQUEST_URI", reqbuf, 1);
+
 	logmsg("CGI SERVER_NAME=%s SCRIPT_NAME=%s REQUEST_URI=%s\n",
 	       reqhost, cgi_script, reqbuf);
 	if (chdir(cgi_dir) == -1)
@@ -350,6 +364,7 @@ void
 response(void) {
 	char *p;
 	struct stat st;
+	int r;
 
 	for (p = reqbuf; *p; p++) {
 		if (*p == '\\' || (*p == '/' && *(p + 1) == '.')) {
@@ -364,10 +379,14 @@ response(void) {
 		}
 	}
 
+	r = stat(reqbuf, &st);
 	if (cgi_mode) {
-		responsecgi();
+		if(r != -1 && !S_ISDIR(st.st_mode))
+			responsefile();
+		else
+			responsecgi();
 	} else {
-		if (stat(reqbuf, &st) != -1 && S_ISDIR(st.st_mode))
+		if (r != -1 && S_ISDIR(st.st_mode))
 			responsedir();
 		else
 			responsefile();
