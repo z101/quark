@@ -57,9 +57,9 @@ enum {
 
 static const char *resentry[] = {
 	[HEADER]      = "HTTP/1.1 %s\r\n"
-			"Connection: close\r\n"
-			"Date: %s\r\n"
-			"Server: quark-"VERSION"\r\n",
+	                "Connection: close\r\n"
+	                "Date: %s\r\n"
+	                "Server: quark-"VERSION"\r\n",
 	[CONTENTLEN]  = "Content-Length: %lu\r\n",
 	[LOCATION]    = "Location: %s%s\r\n",
 	[CONTENTTYPE] = "Content-Type: %s\r\n",
@@ -335,8 +335,8 @@ responsecgi(void) {
 		}
 		pclose(cgi);
 	} else {
-		logerrmsg("error\t%s requests %s, but cannot run cgi script %s\n",
-			  host, cgi_script, reqbuf);
+		logerrmsg("error\t%s requests %s, but cannot run cgi script %s: %s\n",
+			  host, reqbuf, cgi_script, strerror(errno));
 		if (putresentry(HEADER, HttpNotFound, tstamp(0))
 		 || putresentry(CONTENTTYPE, texthtml))
 			return;
@@ -351,7 +351,7 @@ response(void) {
 	char *p;
 	struct stat st;
 
-	for (p = reqbuf; *p; p++)
+	for (p = reqbuf; *p; p++) {
 		if (*p == '\\' || (*p == '/' && *(p + 1) == '.')) {
 			/* don't serve bogus or hidden files */
 			if (putresentry(HEADER, HttpForbidden, tstamp(0))
@@ -362,6 +362,8 @@ response(void) {
 				writetext("\r\n<html><body>"HttpForbidden"</body></html>\r\n");
 			return;
 		}
+	}
+
 	if (cgi_mode) {
 		responsecgi();
 	} else {
