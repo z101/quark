@@ -189,7 +189,7 @@ responsefiledata(int fd, off_t size) {
 	for (; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
 		for(size_in = n; (m = write(req.fd, buf, size_in)) > 0; size_in -= m);
 
-	if (m == -1)
+	if (m == -1 && errno != EPIPE)
 		logerrmsg("error writing to client %s: %s\n", host, strerror(errno));
 	if (n == -1)
 		logerrmsg("error reading from file: %s\n", strerror(errno));
