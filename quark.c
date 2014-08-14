@@ -553,9 +553,9 @@ main(int argc, char *argv[]) {
 	} ARGEND;
 
 	/* sanity checks */
-	if (*user && !(upwd = getpwnam(user)))
+	if (user && *user && !(upwd = getpwnam(user)))
 		die("error\tinvalid user %s\n", user);
-	if (*group && !(gpwd = getgrnam(group)))
+	if (group && *group && !(gpwd = getgrnam(group)))
 		die("error\tinvalid group %s\n", group);
 
 	signal(SIGCHLD, sighandler);
