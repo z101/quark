@@ -505,6 +505,12 @@ sighandler(int sig) {
 	}
 }
 
+void
+usage(void) {
+	die("usage: %s [-c] [-d cgidir] [-e cgiscript] [-u user] [-g group] "
+	    "[-i index] [-r docroot] [-s server] [-p port] [-v]\n", argv0);
+}
+
 int
 main(int argc, char *argv[]) {
 	struct addrinfo hints, *ai = NULL;
@@ -513,16 +519,43 @@ main(int argc, char *argv[]) {
 	int i;
 
 	ARGBEGIN {
+	case 'c':
+		cgi_mode = 1;
+		break;
+	case 'd':
+		cgi_dir = EARGF(usage());
+		break;
+	case 'e':
+		cgi_script = EARGF(usage());
+		break;
+	case 'u':
+		user = EARGF(usage());
+		break;
+	case 'g':
+		group = EARGF(usage());
+		break;
+	case 'i':
+		docindex = EARGF(usage());
+		break;
+	case 'r':
+		docroot = EARGF(usage());
+		break;
+	case 'p':
+		serverport = EARGF(usage());
+		break;
+	case 's':
+		servername = EARGF(usage());
+		break;
 	case 'v':
 		die("quark-"VERSION"\n");
 	default:
-		die("usage: %s [-v]\n", argv0);
+		usage();
 	} ARGEND;
 
 	/* sanity checks */
-	if (user && !(upwd = getpwnam(user)))
+	if (*user && !(upwd = getpwnam(user)))
 		die("error\tinvalid user %s\n", user);
-	if (group && !(gpwd = getgrnam(group)))
+	if (*group && !(gpwd = getgrnam(group)))
 		die("error\tinvalid group %s\n", group);
 
 	signal(SIGCHLD, sighandler);
