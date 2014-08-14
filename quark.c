@@ -273,7 +273,7 @@ responsedir(void) {
 	size_t len = strlen(reqbuf);
 	DIR *d;
 
-	if (len && (reqbuf[len - 1] != '/') && (len + 1 < MAXBUFLEN)) {
+	if (len > 0 && (reqbuf[len - 1] != '/') && (len + 1 < MAXBUFLEN)) {
 		/* add directory terminator if necessary */
 		reqbuf[len] = '/';
 		reqbuf[len + 1] = 0;
