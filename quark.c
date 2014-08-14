@@ -184,12 +184,13 @@ putresentry(int type, ...) {
 void
 responsefiledata(int fd, off_t size) {
 	char buf[BUFSIZ];
-	ssize_t n;
+	ssize_t n, m, size_in;
 
 	for (; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
-		if (write(req.fd, buf, n) != n)
-			logerrmsg("error writing to client %s at %ls: %s\n",
-				  host, n, strerror(errno));
+		for(size_in = n; (m = write(req.fd, buf, size_in)) > 0; size_in -= m);
+
+	if (m == -1)
+		logerrmsg("error writing to client %s: %s\n", host, strerror(errno));
 	if (n == -1)
 		logerrmsg("error reading from file: %s\n", strerror(errno));
 }
