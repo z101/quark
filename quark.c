@@ -488,14 +488,14 @@ serve(int fd) {
 			/* get host */
 			host[0] = 0;
 			switch(sa.sa_family) {
-				case AF_INET:
-					inet_ntop(AF_INET, &(((struct sockaddr_in *)&sa)->sin_addr),
-						  host, sizeof host);
-					break;
-				case AF_INET6:
-					inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&sa)->sin6_addr),
-						  host, sizeof host);
-					break;
+			case AF_INET:
+				inet_ntop(AF_INET, &(((struct sockaddr_in *)&sa)->sin_addr),
+					  host, sizeof host);
+				break;
+			case AF_INET6:
+				inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&sa)->sin6_addr),
+					  host, sizeof host);
+				break;
 			}
 
 			result = request();
