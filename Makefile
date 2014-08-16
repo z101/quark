@@ -26,7 +26,6 @@ config.h:
 quark: ${OBJ}
 	@echo CC -o $@
 	@${CC} -o $@ ${OBJ} ${LDFLAGS}
-	@strip $@
 
 clean:
 	@echo cleaning
