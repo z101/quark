@@ -184,7 +184,7 @@ putresentry(int type, ...) {
 void
 responsefiledata(int fd, off_t size) {
 	char buf[BUFSIZ];
-	ssize_t n, m, size_in;
+	ssize_t n, m = 0, size_in;
 
 	for (; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
 		for(size_in = n; (m = write(req.fd, buf, size_in)) > 0; size_in -= m);
@@ -535,8 +535,8 @@ usage(void) {
 int
 main(int argc, char *argv[]) {
 	struct addrinfo hints, *ai = NULL;
-	struct passwd *upwd;
-	struct group *gpwd;
+	struct passwd *upwd = NULL;
+	struct group *gpwd = NULL;
 	int i;
 
 	ARGBEGIN {
