@@ -306,8 +306,9 @@ responsedir(void) {
 void
 responsecgi(void) {
 	FILE *cgi;
-	size_t r;
-	char *q;
+	size_t r, linesiz = 0;
+	char *q, *line = NULL, *statusline = HttpOk;
+	ssize_t linelen;
 
 	if (req.type == GET)
 		setenv("REQUEST_METHOD", "GET", 1);
@@ -338,15 +339,29 @@ responsecgi(void) {
 		logerrmsg("error\tchdir to cgi directory %s failed: %s\n",
 			  cgi_dir, strerror(errno));
 	if ((cgi = popen(cgi_script, "r"))) {
-		if (putresentry(HEADER, HttpOk, tstamp(0)))
-			return;
 		status = 200;
+		if ((linelen = getline(&line, &linesiz, cgi)) > 0) {
+			if (strncmp(line, "Status:", strlen("Status:")) == 0) {
+				statusline = line + strlen("Status:") + 1;
+				errno = 0;
+				status = strtol(statusline, NULL, 10);
+				if(errno)
+					status = 200;
+				if (putresentry(HEADER, statusline, tstamp(0)))
+					return;
+				writedata(line, linelen);
+			} else {
+				if (putresentry(HEADER, statusline, tstamp(0)))
+					return;
+			}
+		}
 		while ((r = fread(resbuf, 1, MAXBUFLEN, cgi)) > 0) {
 			if (writedata(resbuf, r)) {
 				pclose(cgi);
 				return;
 			}
 		}
+		free(line);
 		pclose(cgi);
 	} else {
 		logerrmsg("error\t%s requests %s, but cannot run cgi script %s: %s\n",
