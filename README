@@ -1,7 +1,7 @@
-quark - simple http get server
-==============================
-quark is an extremly small and simple http get-only web server. It only serves
-static pages on a single host.
+quark - simple HTTP server
+==========================
+quark is a small and simple HTTP web server. It serves static
+pages on a single host and has basic CGI support.
 
 
 Installation
@@ -12,7 +12,8 @@ Edit config.mk to match your local setup. quark is installed into
 Afterwards enter the following command to build and install quark
 (if necessary as root):
 
-    $ make clean install
+    $ make clean; make
+    $ sudo make install
 
 
 Running quark 
