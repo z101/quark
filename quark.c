@@ -554,8 +554,10 @@ sighandler(int sig) {
 
 void
 usage(void) {
-	die("usage: %s [-c] [-d cgidir] [-e cgiscript] [-u user] [-g group] "
-	    "[-i index] [-l] [-r docroot] [-s server] [-p port] [-v]\n", argv0);
+	fprintf(stderr, "usage: quark [-c] [-d cgidir] [-e cgiscript] [-g group] "
+	                "[-i index] [-l] [-p port] [-r docroot] [-s server] "
+	                "[-u user] [-v]\n");
+	exit(EXIT_FAILURE);
 }
 
 int

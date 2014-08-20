@@ -1,0 +1,62 @@
+.TH QUARK 1 quark\-VERSION
+.SH NAME
+quark \- simple httpd
+.SH SYNOPSIS
+.B quark
+.RB [ \-c ]
+.RB [ \-d
+.IR cgidir ]
+.RB [ \-e
+.IR cgiscript ]
+.RB [ \-g
+.IR group ]
+.RB [ \-i
+.IR index ]
+.RB [ \-l ]
+.RB [ \-p
+.IR port ]
+.RB [ \-r
+.IR docroot ]
+.RB [ \-s
+.IR server ]
+.RB [ \-u
+.IR user ]
+.RB [ \-v ]
+.SH DESCRIPTION
+Quark is a simple httpd.
+.SH OPTIONS
+.TP
+.B \-c 
+enable CGI-mode, disabled by default.
+.TP
+.B \-d " cgidir"
+change directory to cgidir for CGI-mode, by default ".".
+.TP
+.B \-e " cgiscript"
+CGI-script to execute for each request in CGI-mode, by default "/werc.rc".
+.TP
+.B \-g " group"
+change process group to group, by default "nobody".
+.TP
+.B \-i " indexfile"
+index file, by default "index.html".
+.TP
+.B \-l
+enable directory listing, disabled by default.
+.TP
+.B \-p
+listen on port, by default "80".
+.TP
+.B \-r " docroot"
+change directory to docroot, by default ".".
+.TP
+.B \-s " server"
+listen on server, by default "127.0.0.1".
+.TP
+.B \-u " user"
+change process owner to user, by default "nobody".
+.TP
+.B \-v
+show version information.
+.SH BUGS
+Please report them!
