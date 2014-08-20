@@ -447,7 +447,7 @@ request(void) {
 
 	/* read request into reqbuf (MAXBUFLEN byte of reqbuf is emergency 0 terminator */
 	for (; (r = read(req.fd, reqbuf + offset, MAXBUFLEN - offset)) > 0 && offset < MAXBUFLEN
-		&& (!strstr(reqbuf, "\r\n") || !strstr(reqbuf, "\n")); )
+		&& !strstr(reqbuf, "\r\n\r\n") && !strstr(reqbuf, "\n\n"); )
 	{
 		offset += r;
 		reqbuf[offset] = 0;
