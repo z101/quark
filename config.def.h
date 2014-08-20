@@ -9,6 +9,7 @@ static const char *group      = "nobody";
 static const char *cgi_dir    = ".";
 static const char *cgi_script = "/werc.rc";
 static int cgi_mode           = 0;
+static int allowdirlist       = 0;
 
 static const MimeType servermimes[] = {
 	{ "html", "text/html; charset=UTF-8" },

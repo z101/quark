@@ -97,7 +97,6 @@ static char reqhost[256];
 static char reqmod[256];
 static int fd = -1;
 static Request req;
-static int allowdirlist = 0;
 
 char *
 tstamp(time_t t) {
