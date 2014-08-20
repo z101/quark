@@ -76,7 +76,7 @@ static void die(const char *errstr, ...);
 static int putresentry(int type, ...);
 static void responsefiledata(int fd, off_t size);
 static void responsefile(void);
-static void responsedirdata(DIR *d);
+static void responsedirdata(struct dirent **e, int len);
 static void responsedir(void);
 static void responsecgi(void);
 static void response(void);
@@ -97,6 +97,7 @@ static char reqhost[256];
 static char reqmod[256];
 static int fd = -1;
 static Request req;
+static int allowdirlist = 0;
 
 char *
 tstamp(time_t t) {
@@ -242,21 +243,21 @@ responsefile(void) {
 }
 
 void
-responsedirdata(DIR *d) {
-	struct dirent *e;
+responsedirdata(struct dirent **e, int len) {
+	int n;
 
 	if (putresentry(HEADER, HttpOk, tstamp(0))
 	 || putresentry(CONTENTTYPE, texthtml))
 		return;
 	status = 200;
 	if (req.type == GET) {
-		if (writetext("\r\n<html><body><a href='..'>..</a><br>\r\n"))
+		if (writetext("\r\n<html><body><a href=\"..\">..</a><br/>\r\n"))
 			return;
-		while ((e = readdir(d))) {
-			if (e->d_name[0] == '.') /* ignore hidden files, ., .. */
+		for(n = 0; n < len; n++) {
+			if (e[n]->d_name[0] == '.') /* ignore hidden files, ., .. */
 				continue;
-			if (snprintf(resbuf, MAXBUFLEN, "<a href='%s%s'>%s</a><br>\r\n",
-				     reqbuf, e->d_name, e->d_name) >= MAXBUFLEN)
+			if (snprintf(resbuf, MAXBUFLEN, "<a href=\"%s%s\">%s</a><br/>\r\n",
+				     reqbuf, e[n]->d_name, e[n]->d_name) >= MAXBUFLEN)
 			{
 				logerrmsg("snprintf failed, buffer sizeof exceeded");
 				return;
@@ -271,7 +272,8 @@ responsedirdata(DIR *d) {
 void
 responsedir(void) {
 	size_t len = strlen(reqbuf);
-	DIR *d;
+	struct dirent **namelist = NULL;
+	int n;
 
 	if (len > 0 && (reqbuf[len - 1] != '/') && (len + 1 < MAXBUFLEN)) {
 		/* add directory terminator if necessary */
@@ -291,11 +293,20 @@ responsedir(void) {
 		memcpy(reqbuf + len, docindex, strlen(docindex) + 1);
 	if (access(reqbuf, R_OK) == -1) { /* directory mode */
 		reqbuf[len] = 0; /* cut off docindex again */
-		if ((d = opendir(reqbuf))) {
-			responsedirdata(d);
-			closedir(d);
+		if(!allowdirlist) {
+			if (putresentry(HEADER, HttpForbidden, tstamp(0))
+			 || putresentry(CONTENTTYPE, texthtml))
+				return;
+			status = 403;
+			if (req.type == GET)
+				writetext("\r\n<html><body>"HttpForbidden"</body></html>\r\n");
+			return;
+		}
+		if ((n = scandir(reqbuf, &namelist, NULL, alphasort)) >= 0) {
+			responsedirdata(namelist, n);
+			free(namelist);
 		} else {
-			logerrmsg("client %s requests %s but opendir failed: %s\n",
+			logerrmsg("client %s requests %s but scandir failed: %s\n",
 				  host, reqbuf, strerror(errno));
 		}
 	} else {
@@ -544,7 +555,7 @@ sighandler(int sig) {
 void
 usage(void) {
 	die("usage: %s [-c] [-d cgidir] [-e cgiscript] [-u user] [-g group] "
-	    "[-i index] [-r docroot] [-s server] [-p port] [-v]\n", argv0);
+	    "[-i index] [-l] [-r docroot] [-s server] [-p port] [-v]\n", argv0);
 }
 
 int
@@ -572,6 +583,9 @@ main(int argc, char *argv[]) {
 		break;
 	case 'i':
 		docindex = EARGF(usage());
+		break;
+	case 'l':
+		allowdirlist = 1;
 		break;
 	case 'r':
 		docroot = EARGF(usage());
