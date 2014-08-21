@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -23,6 +24,7 @@ char *argv0;
 
 #define LENGTH(x)  (sizeof x / sizeof x[0])
 #define MAXBUFLEN  1024
+#define NPROCS     512
 #define MIN(x,y)   ((x) < (y) ? (x) : (y))
 
 #define HttpOk          "200 OK"
@@ -495,6 +497,7 @@ invalid_request:
 void
 serve(int fd) {
 	int result;
+	struct timeval tv;
 	socklen_t salen;
 	struct sockaddr sa;
 
@@ -520,6 +523,14 @@ serve(int fd) {
 					  host, sizeof host);
 				break;
 			}
+
+			/* If we haven't received any data within this period, close the
+			 * socket to avoid spamming the process table */
+			tv.tv_sec = 30;
+			tv.tv_usec = 0;
+			if (setsockopt(req.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+				logerrmsg("error\tsetsockopt SO_RCVTIMEO failed: %s\n",
+					  strerror(errno));
 
 			result = request();
 			shutdown(req.fd, SHUT_RD);
@@ -562,6 +573,7 @@ main(int argc, char *argv[]) {
 	struct addrinfo hints, *ai = NULL;
 	struct passwd *upwd = NULL;
 	struct group *gpwd = NULL;
+	struct rlimit rlim;
 	int i;
 
 	ARGBEGIN {
@@ -644,6 +656,13 @@ main(int argc, char *argv[]) {
 		i = snprintf(location, sizeof location, "http://%s:%s", servername, serverport);
 	if (i >= sizeof location) {
 		logerrmsg("error\tlocation too long\n");
+		goto err;
+	}
+
+	rlim.rlim_cur = NPROCS;
+	rlim.rlim_max = NPROCS;
+	if (setrlimit(RLIMIT_NPROC, &rlim) == -1) {
+		logerrmsg("error\tsetrlimit RLIMIT_NPROC: %s\n", strerror(errno));
 		goto err;
 	}
 
