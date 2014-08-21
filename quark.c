@@ -97,7 +97,7 @@ static char reqbuf[MAXBUFLEN];
 static char resbuf[MAXBUFLEN];
 static char reqhost[256];
 static char reqmod[256];
-static int fd = -1;
+static int listenfd = -1;
 static Request req;
 
 char *
@@ -555,7 +555,7 @@ sighandler(int sig) {
 		while(0 < waitpid(-1, NULL, WNOHANG));
 	} else {
 		logerrmsg("info\tsignal %s, closing down\n", strsignal(sig));
-		close(fd);
+		close(listenfd);
 		running = 0;
 	}
 }
@@ -637,15 +637,15 @@ main(int argc, char *argv[]) {
 		logerrmsg("error\tgetaddrinfo: %s\n", gai_strerror(i));
 		goto err;
 	}
-	if ((fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
+	if ((listenfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
 		logerrmsg("error\tsocket: %s\n", strerror(errno));
 		goto err;
 	}
-	if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1) {
+	if (bind(listenfd, ai->ai_addr, ai->ai_addrlen) == -1) {
 		logerrmsg("error\tbind: %s\n", strerror(errno));
 		goto err;
 	}
-	if (listen(fd, SOMAXCONN) == -1) {
+	if (listen(listenfd, SOMAXCONN) == -1) {
 		logerrmsg("error\tlisten: %s\n", strerror(errno));
 		goto err;
 	}
@@ -695,13 +695,13 @@ main(int argc, char *argv[]) {
 
 	logmsg("ready\t%s:%s\t%s\n", servername, serverport, docroot);
 
-	serve(fd); /* main loop */
-	close(fd);
+	serve(listenfd); /* main loop */
+	close(listenfd);
 	freeaddrinfo(ai);
 	return EXIT_SUCCESS;
 err:
-	if (fd != -1)
-		close(fd);
+	if (listenfd != -1)
+		close(listenfd);
 	if (ai)
 		freeaddrinfo(ai);
 	return EXIT_FAILURE;
