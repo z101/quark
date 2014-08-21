@@ -501,9 +501,7 @@ serve(int fd) {
 	while (running) {
 		salen = sizeof sa;
 		if ((req.fd = accept(fd, &sa, &salen)) == -1) {
-			/* el cheapo socket release */
-			logerrmsg("info\tcannot accept: %s, sleep a second...\n", strerror(errno));
-			sleep(1);
+			logerrmsg("info\tcannot accept: %s\n", strerror(errno));
 			continue;
 		}
 		result = fork();
