@@ -458,6 +458,8 @@ request(void) {
 		logerrmsg("error\tread: %s\n", strerror(errno));
 		return -1;
 	}
+	if(offset == 0)
+		return -2; /* empty request, ignore in log */
 
 	/* extract host and mod */
 	if (getreqentry("Host:", reqhost, LENGTH(reqhost), " \t\r\n") != 0)
@@ -538,7 +540,8 @@ serve(int fd) {
 			status = -1;
 			if (result == 0)
 				response();
-			logmsg("%d\t%s\t%s\n", status, host, reqbuf);
+			if(result != -2)
+				logmsg("%d\t%s\t%s\n", status, host, status == -1 ? "" : reqbuf);
 			shutdown(req.fd, SHUT_WR);
 			close(req.fd);
 			exit(EXIT_SUCCESS);
