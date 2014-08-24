@@ -451,9 +451,8 @@ request(void) {
 		&& !strstr(reqbuf, "\r\n\r\n") && !strstr(reqbuf, "\n\n"); )
 	{
 		offset += r;
+		reqbuf[offset] = 0;
 	}
-	reqbuf[offset] = 0;
-
 	if (r == -1) {
 		logerrmsg("error\tread: %s\n", strerror(errno));
 		return -1;
