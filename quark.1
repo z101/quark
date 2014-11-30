@@ -4,6 +4,8 @@ quark \- simple httpd
 .SH SYNOPSIS
 .B quark
 .RB [ \-c ]
+.RB [ \-C
+.IR chrootdir ]
 .RB [ \-d
 .IR cgidir ]
 .RB [ \-e
@@ -29,6 +31,9 @@ Quark is a simple httpd.
 .B \-c
 enable CGI-mode, disabled by default.
 .TP
+.B \-C " chrootdir"
+chroot into chrootdir, by default ".".
+.TP
 .B \-d " cgidir"
 change directory to cgidir for CGI-mode, by default ".".
 .TP
@@ -48,7 +53,7 @@ enable directory listing, disabled by default.
 listen on port, by default "80".
 .TP
 .B \-r " docroot"
-change directory to docroot, by default ".".
+change directory to docroot for static files, by default ".".
 .TP
 .B \-s " server"
 listen on server, by default "127.0.0.1".

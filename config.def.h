@@ -2,6 +2,7 @@
 
 static const char *servername = "127.0.0.1";
 static const char *serverport = "80";
+static const char *chrootdir  = ".";
 static const char *docroot    = ".";
 static const char *docindex   = "index.html";
 static const char *user       = "nobody";

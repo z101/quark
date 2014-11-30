@@ -93,7 +93,8 @@ static char location[256];
 static int running = 1;
 static int status;
 static char host[NI_MAXHOST];
-static char reqbuf[MAXBUFLEN];
+static char* reqbuf = NULL;
+static char* reqpath = NULL;
 static char resbuf[MAXBUFLEN];
 static char reqhost[256];
 static char reqmod[256];
@@ -204,7 +205,7 @@ responsefile(void) {
 	int r, ffd;
 	struct stat st;
 
-	if ((r = stat(reqbuf, &st)) == -1 || (ffd = open(reqbuf, O_RDONLY)) == -1) {
+	if ((r = stat(reqpath, &st)) == -1 || (ffd = open(reqpath, O_RDONLY)) == -1) {
 		/* file not found */
 		if (putresentry(HEADER, HttpNotFound, tstamp(0))
 		 || putresentry(CONTENTTYPE, texthtml))
@@ -291,8 +292,8 @@ responsedir(void) {
 		return;
 	}
 	if (len + strlen(docindex) + 1 < MAXBUFLEN)
-		memcpy(reqbuf + len, docindex, strlen(docindex) + 1);
-	if (access(reqbuf, R_OK) == -1) { /* directory mode */
+		memmove(reqbuf + len, docindex, strlen(docindex) + 1);
+	if (access(reqpath, R_OK) == -1) { /* directory mode */
 		reqbuf[len] = 0; /* cut off docindex again */
 		if(!allowdirlist) {
 			if (putresentry(HEADER, HttpForbidden, tstamp(0))
@@ -303,12 +304,12 @@ responsedir(void) {
 				writetext("\r\n<html><body>"HttpForbidden"</body></html>\r\n");
 			return;
 		}
-		if ((n = scandir(reqbuf, &namelist, NULL, alphasort)) >= 0) {
+		if ((n = scandir(reqpath, &namelist, NULL, alphasort)) >= 0) {
 			responsedirdata(namelist, n);
 			free(namelist);
 		} else {
 			logerrmsg("client %s requests %s but scandir failed: %s\n",
-				  host, reqbuf, strerror(errno));
+				  host, reqpath, strerror(errno));
 		}
 	} else {
 		responsefile(); /* docindex */
@@ -406,7 +407,7 @@ response(void) {
 		}
 	}
 
-	r = stat(reqbuf, &st);
+	r = stat(reqpath, &st);
 	if (cgi_mode) {
 		if(r != -1 && !S_ISDIR(st.st_mode))
 			responsefile();
@@ -562,9 +563,9 @@ sighandler(int sig) {
 
 void
 usage(void) {
-	fprintf(stderr, "usage: quark [-c] [-d cgidir] [-e cgiscript] [-g group] "
-	                "[-i index] [-l] [-p port] [-r docroot] [-s server] "
-	                "[-u user] [-v]\n");
+	fprintf(stderr, "usage: quark [-c] [-C chrootdir] [-d cgidir] "
+					"[-e cgiscript] [-g group] [-i index] [-l] [-p port] "
+					"[-r docroot] [-s server] [-u user] [-v]\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -574,11 +575,14 @@ main(int argc, char *argv[]) {
 	struct passwd *upwd = NULL;
 	struct group *gpwd = NULL;
 	struct rlimit rlim;
-	int i;
+	int i, docrootlen;
 
 	ARGBEGIN {
 	case 'c':
 		cgi_mode = 1;
+		break;
+	case 'C':
+		chrootdir = EARGF(usage());
 		break;
 	case 'd':
 		cgi_dir = EARGF(usage());
@@ -618,6 +622,15 @@ main(int argc, char *argv[]) {
 		die("error\tinvalid user %s\n", user);
 	if (group && *group && !(gpwd = getgrnam(group)))
 		die("error\tinvalid group %s\n", group);
+
+	docrootlen = strlen(docroot);
+	reqpath = malloc(docrootlen + MAXBUFLEN);
+	if (reqpath == NULL) {
+		logerrmsg("error\tcannot allocate memory\n");
+		goto err;
+	}
+	memcpy(reqpath, docroot, docrootlen + 1);
+	reqbuf = reqpath + docrootlen;
 
 	signal(SIGCHLD, sighandler);
 	signal(SIGHUP, sighandler);
@@ -666,8 +679,8 @@ main(int argc, char *argv[]) {
 		goto err;
 	}
 
-	if (chdir(docroot) == -1) {
-		logerrmsg("error\tchdir %s: %s\n", docroot, strerror(errno));
+	if (chdir(chrootdir) == -1) {
+		logerrmsg("error\tchdir %s: %s\n", chrootdir, strerror(errno));
 		goto err;
 	}
 	if (chroot(".") == -1) {
@@ -693,15 +706,17 @@ main(int argc, char *argv[]) {
 		goto err;
 	}
 
-	logmsg("ready\t%s:%s\t%s\n", servername, serverport, docroot);
+	logmsg("ready\t%s:%s\t%s\n", servername, serverport, chrootdir);
 
 	serve(listenfd); /* main loop */
 	close(listenfd);
+	free(reqpath);
 	freeaddrinfo(ai);
 	return EXIT_SUCCESS;
 err:
 	if (listenfd != -1)
 		close(listenfd);
+	free(reqpath);
 	if (ai)
 		freeaddrinfo(ai);
 	return EXIT_FAILURE;
