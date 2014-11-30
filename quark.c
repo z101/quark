@@ -102,7 +102,8 @@ static int listenfd = -1;
 static Request req;
 
 char *
-tstamp(time_t t) {
+tstamp(time_t t)
+{
 	static char res[30];
 
 	if (!t)
@@ -112,7 +113,8 @@ tstamp(time_t t) {
 }
 
 int
-writedata(const char *buf, size_t buf_len) {
+writedata(const char *buf, size_t buf_len)
+{
 	ssize_t r, offset;
 
 	for (offset = 0; offset < buf_len; offset += r) {
@@ -125,12 +127,14 @@ writedata(const char *buf, size_t buf_len) {
 }
 
 int
-writetext(const char *buf) {
+writetext(const char *buf)
+{
 	return writedata(buf, strlen(buf));
 }
 
 void
-atomiclog(int fd, const char *errstr, va_list ap) {
+atomiclog(int fd, const char *errstr, va_list ap)
+{
 	static char buf[512];
 	size_t n;
 
@@ -144,7 +148,8 @@ atomiclog(int fd, const char *errstr, va_list ap) {
 }
 
 void
-logmsg(const char *errstr, ...) {
+logmsg(const char *errstr, ...)
+{
 	va_list ap;
 
 	va_start(ap, errstr);
@@ -153,7 +158,8 @@ logmsg(const char *errstr, ...) {
 }
 
 void
-logerrmsg(const char *errstr, ...) {
+logerrmsg(const char *errstr, ...)
+{
 	va_list ap;
 
 	va_start(ap, errstr);
@@ -162,7 +168,8 @@ logerrmsg(const char *errstr, ...) {
 }
 
 void
-die(const char *errstr, ...) {
+die(const char *errstr, ...)
+{
 	va_list ap;
 
 	va_start(ap, errstr);
@@ -172,7 +179,8 @@ die(const char *errstr, ...) {
 }
 
 int
-putresentry(int type, ...) {
+putresentry(int type, ...)
+{
 	va_list ap;
 
 	va_start(ap, type);
@@ -185,12 +193,13 @@ putresentry(int type, ...) {
 }
 
 void
-responsefiledata(int fd, off_t size) {
+responsefiledata(int fd, off_t size)
+{
 	char buf[BUFSIZ];
 	ssize_t n, m = 0, size_in;
 
 	for (; (n = read(fd, buf, MIN(size, sizeof buf))) > 0; size -= n)
-		for(size_in = n; (m = write(req.fd, buf, size_in)) > 0; size_in -= m);
+		for (size_in = n; (m = write(req.fd, buf, size_in)) > 0; size_in -= m);
 
 	if (m == -1 && errno != EPIPE)
 		logerrmsg("error writing to client %s: %s\n", host, strerror(errno));
@@ -199,7 +208,8 @@ responsefiledata(int fd, off_t size) {
 }
 
 void
-responsefile(void) {
+responsefile(void)
+{
 	const char *mimetype = "application/octet-stream";
 	char mod[30], *p;
 	int r, ffd;
@@ -245,7 +255,8 @@ responsefile(void) {
 }
 
 void
-responsedirdata(struct dirent **e, int len) {
+responsedirdata(struct dirent **e, int len)
+{
 	int n;
 
 	if (putresentry(HEADER, HttpOk, tstamp(0))
@@ -255,7 +266,7 @@ responsedirdata(struct dirent **e, int len) {
 	if (req.type == GET) {
 		if (writetext("\r\n<html><body><a href=\"..\">..</a><br/>\r\n"))
 			return;
-		for(n = 0; n < len; n++) {
+		for (n = 0; n < len; n++) {
 			if (e[n]->d_name[0] == '.') /* ignore hidden files, ., .. */
 				continue;
 			if (snprintf(resbuf, MAXBUFLEN, "<a href=\"%s%s\">%s</a><br/>\r\n",
@@ -272,7 +283,8 @@ responsedirdata(struct dirent **e, int len) {
 }
 
 void
-responsedir(void) {
+responsedir(void)
+{
 	size_t len = strlen(reqbuf);
 	struct dirent **namelist = NULL;
 	int n;
@@ -295,7 +307,7 @@ responsedir(void) {
 		memmove(reqbuf + len, docindex, strlen(docindex) + 1);
 	if (access(reqpath, R_OK) == -1) { /* directory mode */
 		reqbuf[len] = 0; /* cut off docindex again */
-		if(!allowdirlist) {
+		if (!allowdirlist) {
 			if (putresentry(HEADER, HttpForbidden, tstamp(0))
 			 || putresentry(CONTENTTYPE, texthtml))
 				return;
@@ -317,7 +329,8 @@ responsedir(void) {
 }
 
 void
-responsecgi(void) {
+responsecgi(void)
+{
 	FILE *cgi;
 	size_t r, linesiz = 0;
 	char *q, *line = NULL, *statusline = HttpOk;
@@ -331,7 +344,7 @@ responsecgi(void) {
 		return;
 	if (*reqhost)
 		setenv("SERVER_NAME", reqhost, 1);
-	if((q = strchr(reqbuf, '?'))) {
+	if ((q = strchr(reqbuf, '?'))) {
 		setenv("QUERY_STRING", q + 1, 1);
 		*q = '\0';
 		setenv("PATH_INFO", reqbuf, 1);
@@ -358,7 +371,7 @@ responsecgi(void) {
 				statusline = line + strlen("Status:") + 1;
 				errno = 0;
 				status = strtol(statusline, NULL, 10);
-				if(errno)
+				if (errno)
 					status = 200;
 				if (putresentry(HEADER, statusline, tstamp(0)))
 					return;
@@ -389,7 +402,8 @@ responsecgi(void) {
 }
 
 void
-response(void) {
+response(void)
+{
 	char *p;
 	struct stat st;
 	int r;
@@ -409,7 +423,7 @@ response(void) {
 
 	r = stat(reqpath, &st);
 	if (cgi_mode) {
-		if(r != -1 && !S_ISDIR(st.st_mode))
+		if (r != -1 && !S_ISDIR(st.st_mode))
 			responsefile();
 		else
 			responsecgi();
@@ -422,7 +436,8 @@ response(void) {
 }
 
 int
-getreqentry(char *name, char *target, size_t targetlen, char *breakchars) {
+getreqentry(char *name, char *target, size_t targetlen, char *breakchars)
+{
 	char *p, *res;
 
 	if ((res = strstr(reqbuf, name))) {
@@ -442,7 +457,8 @@ getreqentry(char *name, char *target, size_t targetlen, char *breakchars) {
 }
 
 int
-request(void) {
+request(void)
+{
 	char *p, *res;
 	ssize_t r;
 	size_t offset = 0;
@@ -496,7 +512,8 @@ invalid_request:
 }
 
 void
-serve(int fd) {
+serve(int fd)
+{
 	int result;
 	struct timeval tv;
 	socklen_t salen;
@@ -551,9 +568,10 @@ serve(int fd) {
 }
 
 void
-sighandler(int sig) {
+sighandler(int sig)
+{
 	if (sig == SIGCHLD) {
-		while(0 < waitpid(-1, NULL, WNOHANG));
+		while (0 < waitpid(-1, NULL, WNOHANG));
 	} else {
 		logerrmsg("info\tsignal %s, closing down\n", strsignal(sig));
 		close(listenfd);
@@ -562,15 +580,17 @@ sighandler(int sig) {
 }
 
 void
-usage(void) {
+usage(void)
+{
 	fprintf(stderr, "usage: quark [-c] [-C chrootdir] [-d cgidir] "
-					"[-e cgiscript] [-g group] [-i index] [-l] [-p port] "
-					"[-r docroot] [-s server] [-u user] [-v]\n");
+	                "[-e cgiscript] [-g group] [-i index] [-l] [-p port] "
+	                "[-r docroot] [-s server] [-u user] [-v]\n");
 	exit(EXIT_FAILURE);
 }
 
 int
-main(int argc, char *argv[]) {
+main(int argc, char *argv[])
+{
 	struct addrinfo hints, *ai = NULL;
 	struct passwd *upwd = NULL;
 	struct group *gpwd = NULL;
