@@ -514,7 +514,7 @@ invalid_request:
 void
 serve(int fd)
 {
-	int result;
+	int result, optval;
 	struct timeval tv;
 	socklen_t salen;
 	struct sockaddr sa;
@@ -541,6 +541,11 @@ serve(int fd)
 					  host, sizeof host);
 				break;
 			}
+			/* bind: re-use address */
+			optval = 1;
+			if (setsockopt(req.fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0)
+				logerrmsg("error\tsetsockopt SO_REUSEADDR failed: %s\n",
+					  strerror(errno));
 
 			/* If we haven't received any data within this period, close the
 			 * socket to avoid spamming the process table */
