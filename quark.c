@@ -25,6 +25,7 @@ char *argv0;
 #define LENGTH(x)  (sizeof x / sizeof x[0])
 #define MAXBUFLEN  1024
 #define NPROCS     512
+#undef MIN
 #define MIN(x,y)   ((x) < (y) ? (x) : (y))
 
 #define HttpOk          "200 OK"
