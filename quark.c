@@ -514,7 +514,7 @@ invalid_request:
 void
 serve(int fd)
 {
-	int result, optval;
+	int result;
 	struct timeval tv;
 	socklen_t salen;
 	struct sockaddr sa;
@@ -541,11 +541,6 @@ serve(int fd)
 					  host, sizeof host);
 				break;
 			}
-			/* bind: re-use address */
-			optval = 1;
-			if (setsockopt(req.fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0)
-				logerrmsg("error\tsetsockopt SO_REUSEADDR failed: %s\n",
-					  strerror(errno));
 
 			/* If we haven't received any data within this period, close the
 			 * socket to avoid spamming the process table */
@@ -600,7 +595,7 @@ main(int argc, char *argv[])
 	struct passwd *upwd = NULL;
 	struct group *gpwd = NULL;
 	struct rlimit rlim;
-	int i, docrootlen;
+	int i, docrootlen, optval;
 
 	ARGBEGIN {
 	case 'c':
@@ -679,6 +674,12 @@ main(int argc, char *argv[])
 		logerrmsg("error\tsocket: %s\n", strerror(errno));
 		goto err;
 	}
+
+	optval = 1;
+	if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0)
+		logerrmsg("error\tsetsockopt SO_REUSEADDR failed: %s\n",
+			  strerror(errno));
+
 	if (bind(listenfd, ai->ai_addr, ai->ai_addrlen) == -1) {
 		logerrmsg("error\tbind: %s\n", strerror(errno));
 		goto err;
