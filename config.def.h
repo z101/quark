@@ -19,7 +19,7 @@ static const MimeType servermimes[] = {
 	{ "c",    "text/plain" },
 	{ "h",    "text/plain" },
 	{ "go",   "text/plain" },
-	{ "sh"    "text/plain" },
+	{ "sh",   "text/plain" },
 	{ "log",  "text/plain" },
 	{ "txt",  "text/plain" },
 	{ "md",   "text/plain" },
