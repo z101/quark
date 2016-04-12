@@ -1,0 +1,107 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          quark
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: quark web-service
+# Description:       quark web-service daemon
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+PLAN9="/usr/local/plan9"
+DAEMON="/usr/local/bin/quark"
+NAME="quark"
+
+[ -x $DAEMON ] || exit 5
+
+PIDFILE="/var/run/$NAME.pid"
+LOGFILE="/var/log/$NAME.log"
+
+. /lib/lsb/init-functions
+
+OPTS_CHROOTDIR="/"
+OPTS_CGIDIR="/home/z101/repos/swerc/bin"
+OPTS_CGISCRIPT="./werc.rc"
+OPTS_USER="www-data"
+OPTS_GROUP="www-data"
+OPTS_SERVER="93.189.43.12"
+
+DAEMON_OPTS="-c -C $OPTS_CHROOTDIR -d $OPTS_CGIDIR -e $OPTS_CGISCRIPT -u $OPTS_USER -g $OPTS_GROUP -s $OPTS_SERVER"
+DAEMON_CMD="$DAEMON $DAEMON_OPTS >$LOGFILE >[2=1]"
+
+DIETIME=5
+
+set -e
+
+status() {
+	status_of_proc -p $PIDFILE $DAEMON "$NAME daemon"
+}
+
+running() {
+    [ -e $PIDFILE ] && status && return 0
+    return 1
+}
+
+start_daemon() {
+	start-stop-daemon -Sboqmp $PIDFILE -a $PLAN9/bin/rc -- -c "exec $DAEMON_CMD"
+}
+
+stop_daemon() {
+	start-stop-daemon -Koqp $PIDFILE
+}
+
+case $1 in
+	start)
+		if running ; then
+			exit 0
+		fi
+		log_daemon_msg "starting daemon" "$NAME"
+		if start_daemon ; then
+			log_end_msg 0
+		else
+			log_end_msg 1
+		fi
+		;;
+	stop|force-stop)
+		if running ; then
+			log_daemon_msg "stopping daemon" "$NAME"
+			if stop_daemon ; then
+				log_end_msg 0
+			else
+				log_end_msg 1
+			fi
+		fi
+		;;
+	restart|force-reload)
+		log_daemon_msg "restarting daemon" "$NAME"
+		if running && stop_daemon ; then
+			sleep "$DIETIME"s
+		fi
+		if start_daemon ; then
+			log_end_msg 0
+		else
+			log_end_msg 1
+		fi
+		;;
+	status)
+		if ! running ; then
+			log_daemon_msg "$NAME daemon is not running"
+			log_end_msg 0
+		fi
+		;;
+	reload)
+		log_warning_msg "reloading $NAME daemon: not implemented"
+		log_warning_msg "cannot re-read the config file (use restart)."
+		;;
+	*)
+		N=/etc/init.d/$NAME
+		echo "Usage: $N {start|stop|force-stop|restart|force-reload|status}" >&2
+		exit 1
+		;;
+esac
+
+exit 0
+
