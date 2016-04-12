@@ -36,13 +36,8 @@ DIETIME=5
 
 set -e
 
-status() {
-	status_of_proc -p $PIDFILE $DAEMON "$NAME daemon"
-}
-
 running() {
-    [ -e $PIDFILE ] && status && return 0
-    return 1
+    [ -e $PIDFILE ] && pidofproc -p $PIDFILE $DAEMON >/dev/null
 }
 
 start_daemon() {
@@ -56,6 +51,7 @@ stop_daemon() {
 case $1 in
 	start)
 		if running ; then
+			log_success_msg "$NAME daemon is already running"
 			exit 0
 		fi
 		log_daemon_msg "starting daemon" "$NAME"
@@ -76,10 +72,12 @@ case $1 in
 		fi
 		;;
 	restart|force-reload)
-		log_daemon_msg "restarting daemon" "$NAME"
+		log_daemon_msg "stopping daemon" "$NAME"
 		if running && stop_daemon ; then
 			sleep "$DIETIME"s
 		fi
+		log_end_msg 0
+		log_daemon_msg "starting daemon" "$NAME"
 		if start_daemon ; then
 			log_end_msg 0
 		else
@@ -87,9 +85,10 @@ case $1 in
 		fi
 		;;
 	status)
-		if ! running ; then
-			log_daemon_msg "$NAME daemon is not running"
-			log_end_msg 0
+		if running ; then
+			log_success_msg "$NAME daemon is running"
+		else
+			log_warning_msg "$NAME daemon stopped"
 		fi
 		;;
 	reload)
@@ -104,4 +103,3 @@ case $1 in
 esac
 
 exit 0
-
