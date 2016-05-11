@@ -22,7 +22,7 @@ opts_server=93.189.43.12
 
 daemon=./$name
 daemon_opts=(-c -C $"opts_chrootdir -d $"opts_cgidir -e $"opts_cgiscript -u $"opts_user -g $"opts_group -s $"opts_server)
-daemon_cmd=($"daemon $"daemon_opts)
+daemon_cmd=($"daemon $"daemon_opts '>[2=1]')
 
 echo
 echo ---------------------------
