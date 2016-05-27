@@ -1,0 +1,301 @@
+diff --git a/quark.c b/quark.c
+index 8544214..08317db 100644
+--- a/quark.c
++++ b/quark.c
+@@ -1,4 +1,5 @@
+ /* See LICENSE file for license details. */
++#include <ctype.h>
+ #include <dirent.h>
+ #include <errno.h>
+ #include <fcntl.h>
+@@ -24,6 +25,7 @@ char *argv0;
+ 
+ #define LENGTH(x)  (sizeof x / sizeof x[0])
+ #define MAXBUFLEN  1024
++#define MAXLNLEN 512
+ #define NPROCS     512
+ #undef MIN
+ #define MIN(x,y)   ((x) < (y) ? (x) : (y))
+@@ -62,7 +64,7 @@ static const char *resentry[] = {
+ 	[HEADER]      = "HTTP/1.1 %s\r\n"
+ 	                "Connection: close\r\n"
+ 	                "Date: %s\r\n"
+-	                "Server: quark-"VERSION"\r\n",
++	                "Server: unknown\r\n",
+ 	[CONTENTLEN]  = "Content-Length: %lu\r\n",
+ 	[LOCATION]    = "Location: %s%s\r\n",
+ 	[CONTENTTYPE] = "Content-Type: %s\r\n",
+@@ -74,8 +76,11 @@ static int writedata(const char *buf, size_t buflen);
+ static int writetext(const char *buf);
+ static void atomiclog(int fd, const char *errstr, va_list ap);
+ static void logmsg(const char *errstr, ...);
++static void logblkmsg(const char *errstr, ...);
++static void loginfmsg(const char *errstr, ...);
+ static void logerrmsg(const char *errstr, ...);
+ static void die(const char *errstr, ...);
++static void logheaders(char *prefix, char *text);
+ static int putresentry(int type, ...);
+ static void responsefiledata(int fd, off_t size);
+ static void responsefile(void);
+@@ -99,6 +104,8 @@ static char* reqpath = NULL;
+ static char resbuf[MAXBUFLEN];
+ static char reqhost[256];
+ static char reqmod[256];
++static char logbuf[MAXBUFLEN];
++static char reqraw[MAXBUFLEN];
+ static int listenfd = -1;
+ static Request req;
+ 
+@@ -106,10 +113,12 @@ char *
+ tstamp(time_t t)
+ {
+ 	static char res[30];
++	char *pr;
+ 
+ 	if (!t)
+ 		t = time(NULL);
+-	strftime(res, sizeof res, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
++	strftime(res, sizeof res, "%Y-%m-%d %a %H:%M:%S gmt", gmtime(&t));
++	for (pr = res; (*pr = tolower(*pr)); ++pr);
+ 	return res;
+ }
+ 
+@@ -136,16 +145,15 @@ writetext(const char *buf)
+ void
+ atomiclog(int fd, const char *errstr, va_list ap)
+ {
+-	static char buf[512];
+ 	size_t n;
+ 
+-	/* assemble the message in buf and write it in one pass
++	/* assemble the message in logbuf and write it in one pass
+ 	   to avoid interleaved concurrent writes on a shared fd. */
+-	n = snprintf(buf, sizeof buf, "%s\t", tstamp(0));
+-	n += vsnprintf(buf + n, sizeof buf - n, errstr, ap);
+-	if (n >= sizeof buf)
+-		n = sizeof buf - 1;
+-	write(fd, buf, n);
++	n = strlen(logbuf);
++	n += vsnprintf(logbuf + n, sizeof logbuf - n, errstr, ap);
++	if (n >= sizeof logbuf)
++		n = sizeof logbuf - 1;
++	write(fd, logbuf, n);
+ }
+ 
+ void
+@@ -154,6 +162,29 @@ logmsg(const char *errstr, ...)
+ 	va_list ap;
+ 
+ 	va_start(ap, errstr);
++	*logbuf = 0;
++	atomiclog(STDOUT_FILENO, errstr, ap);
++	va_end(ap);
++}
++
++void
++logblkmsg(const char *errstr, ...)
++{
++	va_list ap;
++
++	va_start(ap, errstr);
++	sprintf(logbuf, ". [%s] ", tstamp(0));
++	atomiclog(STDOUT_FILENO, errstr, ap);
++	va_end(ap);
++}
++
++void
++loginfmsg(const char *errstr, ...)
++{
++	va_list ap;
++
++	va_start(ap, errstr);
++	sprintf(logbuf, "? [%s] ", tstamp(0));
+ 	atomiclog(STDOUT_FILENO, errstr, ap);
+ 	va_end(ap);
+ }
+@@ -164,6 +195,7 @@ logerrmsg(const char *errstr, ...)
+ 	va_list ap;
+ 
+ 	va_start(ap, errstr);
++	sprintf(logbuf, "! [%s] ", tstamp(0));
+ 	atomiclog(STDERR_FILENO, errstr, ap);
+ 	va_end(ap);
+ }
+@@ -174,11 +206,53 @@ die(const char *errstr, ...)
+ 	va_list ap;
+ 
+ 	va_start(ap, errstr);
++	sprintf(logbuf, "! [%s] ", tstamp(0));
+ 	atomiclog(STDERR_FILENO, errstr, ap);
+ 	va_end(ap);
+ 	exit(EXIT_FAILURE);
+ }
+ 
++void
++logheaders(char *prefix, char *text)
++{
++	static char line[MAXLNLEN];
++	char *p;
++	int len, el = 0;
++
++	logbuf[0] = line[0] = 0;
++	for (p = text; *p && strlen(logbuf) < MAXBUFLEN - 1 && !el; ++p) {
++		switch (*p) {
++		case '\r':
++			break;
++		case '\n':
++			len = strlen(line);
++			if (!len) {
++				el = 1;
++				break;
++			}
++			line[len] = *p;
++			line[len + 1] = '\0';
++			strncat(logbuf, line, MAXBUFLEN - len);
++			line[0] = 0;
++			break;
++		default:
++			len = strlen(line);
++			if (!len) {
++				strncat(line, prefix, MAXLNLEN - len - 1);
++				len = strlen(line);
++			}
++			line[len] = *p;
++			line[len + 1] = '\0';
++			break;
++		}
++	}
++
++	len = strlen(logbuf);
++	if (len) {
++		write(STDOUT_FILENO, logbuf, len);
++	}
++}
++
+ int
+ putresentry(int type, ...)
+ {
+@@ -190,6 +264,7 @@ putresentry(int type, ...)
+ 		return -1;
+ 	}
+ 	va_end(ap);
++	logheaders("	<- ", resbuf);
+ 	return writetext(resbuf);
+ }
+ 
+@@ -336,6 +411,7 @@ responsecgi(void)
+ 	size_t r, linesiz = 0;
+ 	char *q, *line = NULL;
+ 	ssize_t linelen;
++	int wasres = 0;
+ 
+ 	char *statp;
+ 	char statusline[256];
+@@ -364,14 +440,13 @@ responsecgi(void)
+ 	setenv("REMOTE_ADDR", host, 1);
+ 	setenv("REQUEST_URI", reqbuf, 1);
+ 
+-	logmsg("CGI SERVER_NAME=%s SCRIPT_NAME=%s REQUEST_URI=%s\n",
+-	       reqhost, cgi_script, reqbuf);
+ 	if (chdir(cgi_dir) == -1)
+ 		logerrmsg("error\tchdir to cgi directory %s failed: %s\n",
+ 			  cgi_dir, strerror(errno));
+ 	if ((cgi = popen(cgi_script, "r"))) {
+ 		status = 200;
+ 		if ((linelen = getline(&line, &linesiz, cgi)) > 0) {
++			wasres = 1;
+ 			if (strncmp(line, "Status:", strlen("Status:")) == 0) {
+ 				statp = line + strlen("Status:") + 1;
+ 				if (line[linelen-1] == '\n') {
+@@ -392,7 +467,13 @@ responsecgi(void)
+ 					return;
+ 			}
+ 		}
++		int first = 1;
+ 		while ((r = fread(resbuf, 1, MAXBUFLEN, cgi)) > 0) {
++			if (first) {
++				logheaders("	<- ", resbuf);
++				first = 0;
++				wasres = 1;
++			}
+ 			if (writedata(resbuf, r)) {
+ 				pclose(cgi);
+ 				return;
+@@ -400,6 +481,8 @@ responsecgi(void)
+ 		}
+ 		free(line);
+ 		pclose(cgi);
++		if (wasres)
++			logmsg("\n");
+ 	} else {
+ 		logerrmsg("error\t%s requests %s, but cannot run cgi script %s: %s\n",
+ 			  host, reqbuf, cgi_script, strerror(errno));
+@@ -485,6 +568,7 @@ request(void)
+ 		logerrmsg("error\tread: %s\n", strerror(errno));
+ 		return -1;
+ 	}
++	memcpy(reqraw, reqbuf, MAXBUFLEN);
+ 
+ 	/* extract host and mod */
+ 	if (getreqentry("Host:", reqhost, LENGTH(reqhost), " \t\r\n") != 0)
+@@ -517,8 +601,16 @@ request(void)
+ 		goto invalid_request;
+ 	*p = 0;
+ 	memmove(reqbuf, res, (p - res) + 1);
++	logblkmsg("%s %s\n", host, reqbuf);
++	logmsg("\n");
++	logheaders("	-> ", reqraw);
++	logmsg("\n");
+ 	return 0;
+ invalid_request:
++	logblkmsg("%s %s\n", host, "invalid request");
++	logmsg("\n");
++	logheaders("	-> ", reqraw);
++	logmsg("\n");
+ 	return -1;
+ }
+ 
+@@ -533,7 +625,7 @@ serve(int fd)
+ 	while (running) {
+ 		salen = sizeof sa;
+ 		if ((req.fd = accept(fd, &sa, &salen)) == -1) {
+-			logerrmsg("info\tcannot accept: %s\n", strerror(errno));
++			logerrmsg("cannot accept: %s\n", strerror(errno));
+ 			continue;
+ 		}
+ 		result = fork();
+@@ -566,7 +658,6 @@ serve(int fd)
+ 			status = -1;
+ 			if (result == 0)
+ 				response();
+-			logmsg("%d\t%s\t%s\n", status, host, reqbuf);
+ 			shutdown(req.fd, SHUT_WR);
+ 			close(req.fd);
+ 			exit(EXIT_SUCCESS);
+@@ -575,7 +666,7 @@ serve(int fd)
+ 		}
+ 		close(req.fd);
+ 	}
+-	logmsg("info\tshutting down\n");
++	loginfmsg("shutting down\n");
+ }
+ 
+ void
+@@ -584,7 +675,7 @@ sighandler(int sig)
+ 	if (sig == SIGCHLD) {
+ 		while (0 < waitpid(-1, NULL, WNOHANG));
+ 	} else {
+-		logerrmsg("info\tsignal %s, closing down\n", strsignal(sig));
++		logerrmsg("signal %s, closing down\n", strsignal(sig));
+ 		close(listenfd);
+ 		running = 0;
+ 	}
+@@ -743,7 +834,7 @@ main(int argc, char *argv[])
+ 		goto err;
+ 	}
+ 
+-	logmsg("ready\t%s:%s\t%s\n", servername, serverport, chrootdir);
++	loginfmsg("ready %s:%s %s\n", servername, serverport, chrootdir);
+ 
+ 	serve(listenfd); /* main loop */
+ 	close(listenfd);
