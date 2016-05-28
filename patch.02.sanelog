@@ -248,7 +248,7 @@ index 8544214..08317db 100644
 +	logmsg("\n");
  	return 0;
  invalid_request:
-+	logblkmsg("%s %s\n", host, "invalid request");
++	logblkmsg("[%s] %s\n", host, "invalid request");
 +	logmsg("\n");
 +	logheaders("	-> ", reqraw);
 +	logmsg("\n");
