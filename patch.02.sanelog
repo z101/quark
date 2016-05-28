@@ -242,7 +242,7 @@ index 8544214..08317db 100644
  		goto invalid_request;
  	*p = 0;
  	memmove(reqbuf, res, (p - res) + 1);
-+	logblkmsg("%s %s\n", host, reqbuf);
++	logblkmsg("[%s] %s\n", host, reqbuf);
 +	logmsg("\n");
 +	logheaders("	-> ", reqraw);
 +	logmsg("\n");
