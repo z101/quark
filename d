@@ -18,7 +18,7 @@ opts_cgidir=/home/z101/repos/swerc/bin
 opts_cgiscript=./werc.rc
 opts_user=www-data
 opts_group=www-data
-opts_server=93.189.43.12
+opts_server=93.189.43.88
 
 daemon=./$name
 daemon_opts=(-c -C $"opts_chrootdir -d $"opts_cgidir -e $"opts_cgiscript -u $"opts_user -g $"opts_group -s $"opts_server)
